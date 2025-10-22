@@ -1,0 +1,40 @@
+# Environment variables (NEVER commit passwords!)
+.env
+*.env
+
+# Python cache
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+
+# Virtual environments
+venv/
+env/
+ENV/
+
+# Streamlit cache
+.streamlit/
+
+# Generated files
+network.html
+*.csv
+*.html
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Neo4j backups
+*.db
+*.dump
+
+# IDE files
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Jupyter notebooks (if any)
+.ipynb_checkpoints/
