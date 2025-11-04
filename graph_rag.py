@@ -16,6 +16,7 @@ class GraphRAG:
                 base_url=config.OPENAI_BASE_URL
             )
             self.use_llm = True
+            print("✅ LLM initialized successfully")
         except Exception as e:
             print(f"⚠️ LLM unavailable: {e}")
             self.use_llm = False
@@ -32,8 +33,16 @@ class GraphRAG:
             question: Current user question
             conversation_history: List of previous {role, content} messages
         """
+        print(f"\n🔍 Processing question: {question}")
+        
         # Step 1: RETRIEVE - Get ALL relevant data
         context = self._smart_retrieve(question, conversation_history)
+        
+        print(f"✅ Retrieved {len(context)} context keys")
+        for key in context.keys():
+            if context[key]:
+                data_len = len(context[key]) if isinstance(context[key], list) else 'stats'
+                print(f"  ✓ {key}: {data_len}")
         
         # Step 2: GENERATE answer with conversation awareness
         if self.use_llm:
@@ -43,6 +52,7 @@ class GraphRAG:
                     context, 
                     conversation_history
                 )
+                print("✅ LLM generated response")
             except Exception as e:
                 print(f"⚠️ LLM failed: {e}")
                 answer = self._generate_fallback(question, context)
@@ -59,6 +69,8 @@ class GraphRAG:
         context = {}
         q = question.lower()
         
+        print(f"📋 Analyzing question: '{question}'")
+        
         # Check conversation history for entity references
         entities_from_history = self._extract_entities_from_history(conversation_history)
         
@@ -67,6 +79,8 @@ class GraphRAG:
         crime_types = self._extract_crime_types(question)
         person_names = self._extract_person_names(question)
         organizations = self._extract_organizations(question)
+        
+        print(f"🔎 Found entities - Locations: {locations}, Persons: {person_names}, Orgs: {organizations}")
         
         # Merge with historical entities for follow-up questions
         if entities_from_history:
@@ -88,34 +102,44 @@ class GraphRAG:
                 'total_organizations': self.db.query("MATCH (o:Organization) RETURN count(o) as n")[0]['n'],
                 'total_evidence': self.db.query("MATCH (e:Evidence) RETURN count(e) as n")[0]['n']
             }
-        except:
+            print(f"📊 Stats: {context['database_stats']}")
+        except Exception as e:
+            print(f"❌ Error fetching stats: {e}")
             context['database_stats'] = {'error': 'Could not fetch stats'}
         
         # ========== ORGANIZATION QUERIES ==========
-        if any(w in q for w in ['organization', 'gang', 'crew', 'syndicate', 'cartel', 'ring']) or organizations:
+        # FIXED: Check for ANY organization-related keywords
+        if any(w in q for w in ['organization', 'organisations', 'gang', 'crew', 'syndicate', 'cartel', 'ring', 'operate', 'operating']) or organizations:
+            print("🏢 Fetching organizations...")
             try:
-                context['all_organizations'] = self.db.query("""
+                orgs = self.db.query("""
                     MATCH (o:Organization)
                     RETURN o.name as name, o.type as type, 
                            o.territory as territory, o.members_count as members,
                            o.activity_level as activity
                     ORDER BY o.members_count DESC
                 """)
+                context['all_organizations'] = orgs
+                print(f"✅ Found {len(orgs)} organizations")
                 
-                context['organization_members'] = self.db.query("""
+                members = self.db.query("""
                     MATCH (p:Person)-[r:MEMBER_OF]->(o:Organization)
                     RETURN o.name as organization, p.name as member,
                            p.age as age, r.rank as rank
                     ORDER BY o.name, r.rank
                     LIMIT 50
                 """)
+                context['organization_members'] = members
+                print(f"✅ Found {len(members)} organization members")
+                
             except Exception as e:
-                print(f"Error fetching organizations: {e}")
+                print(f"❌ Error fetching organizations: {e}")
         
         # Specific organization query
         if organizations:
             for org in organizations[:3]:
                 try:
+                    print(f"🔍 Fetching crimes for organization: {org}")
                     org_crimes = self.db.query(f"""
                         MATCH (p:Person)-[:MEMBER_OF]->(o:Organization {{name: '{org}'}})
                         MATCH (p)-[:PARTY_TO]->(c:Crime)-[:OCCURRED_AT]->(l:Location)
@@ -127,12 +151,14 @@ class GraphRAG:
                     
                     if org_crimes:
                         context[f'org_{org}_crimes'] = org_crimes
+                        print(f"✅ Found {len(org_crimes)} crimes for {org}")
                 except Exception as e:
-                    print(f"Error fetching {org} crimes: {e}")
+                    print(f"❌ Error fetching {org} crimes: {e}")
         
         # ========== EVIDENCE QUERIES ==========
         if any(w in q for w in ['evidence', 'proof', 'forensic', 'dna', 'fingerprint']):
             try:
+                print("🔬 Fetching evidence...")
                 context['all_evidence'] = self.db.query("""
                     MATCH (e:Evidence)
                     RETURN e.id as id, e.type as type, e.description as description,
@@ -154,12 +180,14 @@ class GraphRAG:
                     ORDER BY r.confidence DESC
                     LIMIT 30
                 """)
+                print("✅ Evidence fetched")
             except Exception as e:
-                print(f"Error fetching evidence: {e}")
+                print(f"❌ Error fetching evidence: {e}")
         
         # ========== INVESTIGATOR QUERIES ==========
         if any(w in q for w in ['investigator', 'detective', 'officer', 'assigned']):
             try:
+                print("👮 Fetching investigators...")
                 context['all_investigators'] = self.db.query("""
                     MATCH (i:Investigator)
                     RETURN i.name as name, i.badge_number as badge,
@@ -167,12 +195,14 @@ class GraphRAG:
                            i.cases_solved as solved, i.active_cases as active
                     ORDER BY i.cases_solved DESC
                 """)
+                print("✅ Investigators fetched")
             except Exception as e:
-                print(f"Error fetching investigators: {e}")
+                print(f"❌ Error fetching investigators: {e}")
         
         # ========== MO PATTERNS ==========
         if any(w in q for w in ['modus operandi', 'mo', 'pattern', 'method', 'signature', 'similar']):
             try:
+                print("🎯 Fetching MO patterns...")
                 context['all_mo_patterns'] = self.db.query("""
                     MATCH (m:ModusOperandi)
                     RETURN m.id as id, m.description as description,
@@ -187,12 +217,14 @@ class GraphRAG:
                     ORDER BY r.similarity DESC
                     LIMIT 40
                 """)
+                print("✅ MO patterns fetched")
             except Exception as e:
-                print(f"Error fetching MO patterns: {e}")
+                print(f"❌ Error fetching MO patterns: {e}")
         
         # ========== VEHICLES ==========
         if any(w in q for w in ['vehicle', 'car', 'truck', 'getaway', 'stolen']):
             try:
+                print("🚗 Fetching vehicles...")
                 context['all_vehicles'] = self.db.query("""
                     MATCH (v:Vehicle)
                     RETURN v.id as id, v.make as make, v.model as model,
@@ -201,25 +233,39 @@ class GraphRAG:
                     ORDER BY v.reported_stolen DESC
                     LIMIT 30
                 """)
+                print("✅ Vehicles fetched")
             except Exception as e:
-                print(f"Error fetching vehicles: {e}")
+                print(f"❌ Error fetching vehicles: {e}")
         
         # ========== WEAPONS ==========
         if any(w in q for w in ['weapon', 'gun', 'firearm', 'knife', 'armed']):
             try:
+                print("🔫 Fetching weapons...")
                 context['all_weapons'] = self.db.query("""
                     MATCH (w:Weapon)
                     RETURN w.id as id, w.type as type, w.make as make,
                            w.model as model, w.recovered as recovered
                     LIMIT 30
                 """)
+                
+                # Also fetch armed gang members
+                context['armed_gang_members'] = self.db.query("""
+                    MATCH (p:Person)-[:MEMBER_OF]->(o:Organization)
+                    MATCH (p)-[:OWNS]->(w:Weapon)
+                    RETURN p.name as member, o.name as gang, 
+                           w.type as weapon_type, w.id as weapon_id
+                    ORDER BY o.name
+                    LIMIT 30
+                """)
+                print("✅ Weapons fetched")
             except Exception as e:
-                print(f"Error fetching weapons: {e}")
+                print(f"❌ Error fetching weapons: {e}")
         
         # ========== LOCATION-SPECIFIC ==========
         if locations:
             for location in locations[:3]:
                 try:
+                    print(f"📍 Fetching data for location: {location}")
                     context[f'crimes_in_{location}'] = self.db.query(f"""
                         MATCH (c:Crime)-[:OCCURRED_AT]->(l:Location)
                         WHERE l.name =~ '(?i).*{location}.*'
@@ -238,13 +284,50 @@ class GraphRAG:
                         ORDER BY crime_count DESC
                         LIMIT 20
                     """)
+                    print(f"✅ Location data fetched for {location}")
                 except Exception as e:
-                    print(f"Error fetching {location} data: {e}")
+                    print(f"❌ Error fetching {location} data: {e}")
         
         # ========== PERSON-SPECIFIC ==========
         if person_names:
             for name in person_names[:3]:
                 try:
+                    print(f"👤 Fetching data for person: {name}")
+                    
+                    # Get person's basic info
+                    person_info = self.db.query(f"""
+                        MATCH (p:Person)
+                        WHERE p.name =~ '(?i).*{name}.*'
+                        RETURN p.name as name, p.age as age, p.risk_score as risk_score,
+                               p.occupation as occupation, p.criminal_record as has_record
+                    """)
+                    
+                    if person_info:
+                        context[f'{name}_info'] = person_info
+                    
+                    # Get person's organizations
+                    person_orgs = self.db.query(f"""
+                        MATCH (p:Person)-[r:MEMBER_OF]->(o:Organization)
+                        WHERE p.name =~ '(?i).*{name}.*'
+                        RETURN o.name as organization, r.rank as rank, r.since as since
+                    """)
+                    
+                    if person_orgs:
+                        context[f'{name}_organizations'] = person_orgs
+                    
+                    # Get person's crimes
+                    person_crimes = self.db.query(f"""
+                        MATCH (p:Person)-[:PARTY_TO]->(c:Crime)
+                        WHERE p.name =~ '(?i).*{name}.*'
+                        RETURN c.type as crime_type, c.date as date, c.id as crime_id
+                        ORDER BY c.date DESC
+                        LIMIT 20
+                    """)
+                    
+                    if person_crimes:
+                        context[f'{name}_crimes'] = person_crimes
+                    
+                    # Get connections
                     context[f'{name}_connections'] = self.db.query(f"""
                         MATCH (p:Person)-[:KNOWS*1..2]-(connected:Person)
                         WHERE p.name =~ '(?i).*{name}.*'
@@ -253,12 +336,14 @@ class GraphRAG:
                                connected.criminal_record as has_record
                         LIMIT 30
                     """)
+                    print(f"✅ Person data fetched for {name}")
                 except Exception as e:
-                    print(f"Error fetching {name} connections: {e}")
+                    print(f"❌ Error fetching {name} connections: {e}")
         
         # ========== PATTERNS ==========
         if any(w in q for w in ['hotspot', 'dangerous', 'where', 'most crime']):
             try:
+                print("🔥 Fetching crime hotspots...")
                 context['hotspots'] = self.db.query("""
                     MATCH (c:Crime)-[:OCCURRED_AT]->(l:Location)
                     RETURN l.name as location, l.district as district,
@@ -266,11 +351,13 @@ class GraphRAG:
                     ORDER BY crimes DESC
                     LIMIT 15
                 """)
+                print("✅ Hotspots fetched")
             except Exception as e:
-                print(f"Error fetching hotspots: {e}")
+                print(f"❌ Error fetching hotspots: {e}")
         
         if any(w in q for w in ['repeat', 'offender', 'criminal', 'suspect']):
             try:
+                print("🔁 Fetching repeat offenders...")
                 context['repeat_offenders'] = self.db.query("""
                     MATCH (p:Person)-[:PARTY_TO]->(c:Crime)
                     WITH p, count(c) as crimes
@@ -281,11 +368,13 @@ class GraphRAG:
                     ORDER BY crimes DESC
                     LIMIT 20
                 """)
+                print("✅ Repeat offenders fetched")
             except Exception as e:
-                print(f"Error fetching repeat offenders: {e}")
+                print(f"❌ Error fetching repeat offenders: {e}")
         
         if any(w in q for w in ['network', 'connected', 'know', 'associate']):
             try:
+                print("🕸️ Fetching criminal networks...")
                 context['criminal_networks'] = self.db.query("""
                     MATCH (p1:Person)-[:KNOWS]-(p2:Person)
                     WHERE EXISTS((p1)-[:PARTY_TO]->(:Crime))
@@ -293,8 +382,9 @@ class GraphRAG:
                     RETURN p1.name as person1, p2.name as person2
                     LIMIT 30
                 """)
+                print("✅ Networks fetched")
             except Exception as e:
-                print(f"Error fetching networks: {e}")
+                print(f"❌ Error fetching networks: {e}")
         
         return context
     
