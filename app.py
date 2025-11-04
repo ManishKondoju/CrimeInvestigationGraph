@@ -1,143 +1,484 @@
-import streamlit as st
-from datetime import datetime
-import pandas as pd
-import plotly.express as px
-import plotly.graph_objects as go
 
+
+
+# app.py - Crime Investigation System with ENHANCED MODERN UI
+import streamlit as st
 from database import Database
 from network_viz import NetworkVisualization
 from graph_rag import GraphRAG
 from graph_algorithms import render_graph_algorithms_page
 from geo_mapping import render_geographic_page
-from datetime import datetime, timedelta  # Add timedelta here
+from timeline_viz import render_timeline_interface
+from enhanced_dashboard import render_enhanced_dashboard
+from schema_visualizer import render_schema_page  # NEW: Schema visualization
+import plotly.express as px
+import plotly.graph_objects as go
+from datetime import datetime
+import pandas as pd
 
-# RBAC system
-from Streamlit_rbac import (
-    init_rbac,
-    render_login_page,
-    render_user_menu,
-    check_page_permission,
-    require_permission,
-    Permission,
-    Role,
-)
-
-# --------------------------------------------------------------------
-# PAGE CONFIG & GLOBAL STYLES
-# --------------------------------------------------------------------
-
+# Page configuration
 st.set_page_config(
     page_title="CrimeGraphRAG",
     page_icon="🕵️",
     layout="wide",
-    initial_sidebar_state="expanded",
+    initial_sidebar_state="expanded"
 )
 
-# Global CSS
-st.markdown(
-    """
+# ---------------------------
+# ENHANCED MODERN CSS (UNCHANGED)
+# ---------------------------
+st.markdown("""
 <style>
-    @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap');
+    @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap');
     
-    * { font-family: 'Inter', sans-serif; }
-    
-    .main { 
-        background: linear-gradient(135deg, #0f1419 0%, #1a1f3a 50%, #0a0e27 100%);
+    /* Global Styles */
+    * {
+        font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
     }
     
+    /* Main Background with Animated Gradient */
+    .main {
+        background: linear-gradient(-45deg, #0a0e27, #1a1f3a, #2d1b4e, #1e2a47);
+        background-size: 400% 400%;
+        animation: gradientShift 15s ease infinite;
+    }
+    
+    @keyframes gradientShift {
+        0% { background-position: 0% 50%; }
+        50% { background-position: 100% 50%; }
+        100% { background-position: 0% 50%; }
+    }
+    
+    /* Glassmorphism Cards */
+    .glass-card {
+        background: rgba(255, 255, 255, 0.05);
+        backdrop-filter: blur(10px);
+        border-radius: 16px;
+        border: 1px solid rgba(255, 255, 255, 0.1);
+        padding: 24px;
+        box-shadow: 0 8px 32px 0 rgba(31, 38, 135, 0.37);
+        transition: all 0.3s ease;
+    }
+    
+    .glass-card:hover {
+        background: rgba(255, 255, 255, 0.08);
+        transform: translateY(-2px);
+        box-shadow: 0 12px 48px 0 rgba(31, 38, 135, 0.5);
+    }
+    
+    /* Modern Buttons */
     .stButton>button {
         background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
         color: white;
-        border-radius: 10px;
-        padding: 0.6rem 1.5rem;
-        font-weight: 600;
-        transition: all 0.3s ease;
-        border: none;
-    }
-    
-    .stButton>button:hover { 
-        transform: translateY(-2px);
-        box-shadow: 0 5px 15px rgba(102, 126, 234, 0.4);
-    }
-    
-    h1, h2, h3 { color: #ffffff; }
-    
-    [data-testid="stMetricValue"] {
-        font-size: 1.8rem;
-        font-weight: 700;
-        color: #667eea;
-    }
-    
-    .alert-box {
-        padding: 20px;
         border-radius: 12px;
-        margin: 15px 0;
-        border-left: 4px solid;
+        padding: 0.75rem 2rem;
+        font-weight: 600;
+        font-size: 0.95rem;
+        border: none;
+        box-shadow: 0 4px 15px 0 rgba(102, 126, 234, 0.4);
+        transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+        position: relative;
+        overflow: hidden;
+    }
+    
+    .stButton>button:before {
+        content: '';
+        position: absolute;
+        top: 0;
+        left: -100%;
+        width: 100%;
+        height: 100%;
+        background: linear-gradient(90deg, transparent, rgba(255,255,255,0.2), transparent);
+        transition: left 0.5s;
+    }
+    
+    .stButton>button:hover:before {
+        left: 100%;
+    }
+    
+    .stButton>button:hover {
+        transform: translateY(-3px);
+        box-shadow: 0 8px 25px 0 rgba(102, 126, 234, 0.6);
+    }
+    
+    .stButton>button:active {
+        transform: translateY(-1px);
+    }
+    
+    /* Enhanced Metrics */
+    [data-testid="stMetricValue"] {
+        font-size: 2.2rem;
+        font-weight: 800;
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        -webkit-background-clip: text;
+        -webkit-text-fill-color: transparent;
+        background-clip: text;
+    }
+    
+    [data-testid="stMetricLabel"] {
+        font-size: 0.9rem;
+        font-weight: 600;
+        color: #a0aec0;
+        text-transform: uppercase;
+        letter-spacing: 0.05em;
+    }
+    
+    [data-testid="stMetricDelta"] {
+        font-size: 0.85rem;
+        font-weight: 500;
+    }
+    
+    /* Modern Alert Boxes */
+    .alert-box {
+        padding: 24px;
+        border-radius: 16px;
+        margin: 20px 0;
+        backdrop-filter: blur(10px);
+        border: 1px solid rgba(255, 255, 255, 0.1);
+        position: relative;
+        overflow: hidden;
+        transition: all 0.3s ease;
+    }
+    
+    .alert-box:before {
+        content: '';
+        position: absolute;
+        left: 0;
+        top: 0;
+        height: 100%;
+        width: 4px;
+        transition: width 0.3s ease;
+    }
+    
+    .alert-box:hover:before {
+        width: 8px;
     }
     
     .alert-critical {
-        background: rgba(239, 68, 68, 0.15);
-        border-color: #ef4444;
+        background: rgba(239, 68, 68, 0.1);
+        border-left: 4px solid #ef4444;
+    }
+    
+    .alert-critical:before {
+        background: #ef4444;
     }
     
     .alert-warning {
-        background: rgba(245, 158, 11, 0.15);
-        border-color: #f59e0b;
+        background: rgba(245, 158, 11, 0.1);
+        border-left: 4px solid #f59e0b;
+    }
+    
+    .alert-warning:before {
+        background: #f59e0b;
     }
     
     .alert-info {
-        background: rgba(59, 130, 246, 0.15);
-        border-color: #3b82f6;
+        background: rgba(59, 130, 246, 0.1);
+        border-left: 4px solid #3b82f6;
     }
     
+    .alert-info:before {
+        background: #3b82f6;
+    }
+    
+    /* Section Titles with Glow */
     .section-title {
-        color: #667eea;
-        font-size: 1.5rem;
+        color: #ffffff;
+        font-size: 1.6rem;
         font-weight: 700;
-        margin: 30px 0 20px 0;
-        padding-bottom: 10px;
-        border-bottom: 2px solid rgba(102, 126, 234, 0.3);
+        margin: 40px 0 24px 0;
+        padding-bottom: 12px;
+        border-bottom: 2px solid transparent;
+        background: linear-gradient(90deg, rgba(102, 126, 234, 0.5) 0%, transparent 100%);
+        background-position: 0 100%;
+        background-repeat: no-repeat;
+        background-size: 100% 2px;
+        position: relative;
     }
     
-    /* Sidebar styling */
+    .section-title:after {
+        content: '';
+        position: absolute;
+        bottom: -2px;
+        left: 0;
+        width: 60px;
+        height: 2px;
+        background: linear-gradient(90deg, #667eea, #764ba2);
+        box-shadow: 0 0 10px rgba(102, 126, 234, 0.5);
+    }
+    
+    /* Modern Sidebar */
     [data-testid="stSidebar"] {
-        background: linear-gradient(180deg, rgba(10, 14, 39, 0.95) 0%, rgba(26, 31, 58, 0.95) 100%);
+        background: linear-gradient(180deg, rgba(10, 14, 39, 0.98) 0%, rgba(26, 31, 58, 0.98) 100%);
         backdrop-filter: blur(20px);
-        border-right: 1px solid rgba(255, 255, 255, 0.1);
+        border-right: 1px solid rgba(102, 126, 234, 0.2);
     }
     
     [data-testid="stSidebar"] [data-testid="stMarkdownContainer"] {
         color: #e2e8f0;
     }
-
+    
+    /* Sidebar Buttons */
+    [data-testid="stSidebar"] .stButton>button {
+        width: 100%;
+        text-align: left;
+        justify-content: flex-start;
+        padding: 0.85rem 1.2rem;
+        font-size: 0.95rem;
+        margin: 4px 0;
+        background: rgba(255, 255, 255, 0.05);
+        border: 1px solid rgba(255, 255, 255, 0.1);
+    }
+    
+    [data-testid="stSidebar"] .stButton>button:hover {
+        background: rgba(102, 126, 234, 0.2);
+        border-color: rgba(102, 126, 234, 0.4);
+        transform: translateX(4px);
+    }
+    
+    /* Headers */
+    h1, h2, h3 {
+        color: #ffffff;
+        font-weight: 700;
+    }
+    
+    h1 {
+        font-size: 2.5rem;
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 50%, #f093fb 100%);
+        -webkit-background-clip: text;
+        -webkit-text-fill-color: transparent;
+        background-clip: text;
+        margin-bottom: 0.5rem;
+    }
+    
+    /* Data Tables */
+    [data-testid="stDataFrame"] {
+        background: rgba(255, 255, 255, 0.03);
+        border-radius: 12px;
+        border: 1px solid rgba(255, 255, 255, 0.1);
+        overflow: hidden;
+    }
+    
+    /* Tabs */
+    .stTabs [data-baseweb="tab-list"] {
+        gap: 8px;
+        background: rgba(255, 255, 255, 0.03);
+        padding: 8px;
+        border-radius: 12px;
+    }
+    
+    .stTabs [data-baseweb="tab"] {
+        background: transparent;
+        border-radius: 8px;
+        color: #a0aec0;
+        font-weight: 600;
+        padding: 12px 24px;
+        transition: all 0.3s ease;
+    }
+    
+    .stTabs [data-baseweb="tab"]:hover {
+        background: rgba(102, 126, 234, 0.1);
+        color: #667eea;
+    }
+    
+    .stTabs [aria-selected="true"] {
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%) !important;
+        color: white !important;
+        box-shadow: 0 4px 12px rgba(102, 126, 234, 0.4);
+    }
+    
+    /* Expander */
+    .streamlit-expanderHeader {
+        background: rgba(255, 255, 255, 0.05);
+        border-radius: 12px;
+        border: 1px solid rgba(255, 255, 255, 0.1);
+        font-weight: 600;
+        color: #e2e8f0;
+    }
+    
+    .streamlit-expanderHeader:hover {
+        background: rgba(102, 126, 234, 0.1);
+        border-color: rgba(102, 126, 234, 0.3);
+    }
+    
+    /* Input Fields */
+    .stTextInput>div>div>input,
+    .stSelectbox>div>div>div,
+    .stMultiSelect>div>div>div {
+        background: rgba(255, 255, 255, 0.05);
+        border: 1px solid rgba(255, 255, 255, 0.1);
+        border-radius: 10px;
+        color: #e2e8f0;
+        transition: all 0.3s ease;
+    }
+    
+    .stTextInput>div>div>input:focus,
+    .stSelectbox>div>div>div:focus,
+    .stMultiSelect>div>div>div:focus {
+        border-color: #667eea;
+        box-shadow: 0 0 0 2px rgba(102, 126, 234, 0.2);
+        background: rgba(255, 255, 255, 0.08);
+    }
+    
+    /* Chat Messages */
+    .stChatMessage {
+        background: rgba(255, 255, 255, 0.05);
+        border-radius: 16px;
+        border: 1px solid rgba(255, 255, 255, 0.1);
+        padding: 16px;
+        margin: 8px 0;
+    }
+    
+    /* Success/Info/Warning/Error Messages */
+    .stSuccess, .stInfo, .stWarning, .stError {
+        background: rgba(255, 255, 255, 0.05);
+        backdrop-filter: blur(10px);
+        border-radius: 12px;
+        border-left-width: 4px;
+    }
+    
+    /* Spinner */
+    .stSpinner > div {
+        border-top-color: #667eea !important;
+    }
+    
+    /* Status Badge */
+    .status-badge {
+        display: inline-block;
+        padding: 6px 14px;
+        border-radius: 20px;
+        font-size: 0.85rem;
+        font-weight: 600;
+        backdrop-filter: blur(10px);
+        border: 1px solid rgba(255, 255, 255, 0.2);
+    }
+    
+    .status-online {
+        background: rgba(16, 185, 129, 0.2);
+        color: #10b981;
+        border-color: rgba(16, 185, 129, 0.5);
+        box-shadow: 0 0 10px rgba(16, 185, 129, 0.3);
+    }
+    
+    .status-offline {
+        background: rgba(239, 68, 68, 0.2);
+        color: #ef4444;
+        border-color: rgba(239, 68, 68, 0.5);
+    }
+    
+    /* Metric Cards */
+    .metric-card {
+        background: rgba(255, 255, 255, 0.05);
+        backdrop-filter: blur(10px);
+        border-radius: 16px;
+        border: 1px solid rgba(255, 255, 255, 0.1);
+        padding: 20px;
+        transition: all 0.3s ease;
+        position: relative;
+        overflow: hidden;
+    }
+    
+    .metric-card:before {
+        content: '';
+        position: absolute;
+        top: 0;
+        left: 0;
+        right: 0;
+        height: 3px;
+        background: linear-gradient(90deg, #667eea, #764ba2);
+        transform: scaleX(0);
+        transition: transform 0.3s ease;
+    }
+    
+    .metric-card:hover {
+        background: rgba(255, 255, 255, 0.08);
+        transform: translateY(-4px);
+        box-shadow: 0 12px 24px rgba(0, 0, 0, 0.3);
+    }
+    
+    .metric-card:hover:before {
+        transform: scaleX(1);
+    }
+    
+    /* Scrollbar */
+    ::-webkit-scrollbar {
+        width: 10px;
+        height: 10px;
+    }
+    
+    ::-webkit-scrollbar-track {
+        background: rgba(255, 255, 255, 0.05);
+        border-radius: 10px;
+    }
+    
+    ::-webkit-scrollbar-thumb {
+        background: linear-gradient(135deg, #667eea, #764ba2);
+        border-radius: 10px;
+        border: 2px solid rgba(255, 255, 255, 0.05);
+    }
+    
+    ::-webkit-scrollbar-thumb:hover {
+        background: linear-gradient(135deg, #764ba2, #667eea);
+    }
+    
+    /* Loading Animation */
+    @keyframes pulse {
+        0%, 100% { opacity: 1; }
+        50% { opacity: 0.5; }
+    }
+    
+    .loading {
+        animation: pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+    }
+    
+    /* Hover Effect for Stats */
+    .stat-item {
+        transition: all 0.3s ease;
+        cursor: pointer;
+    }
+    
+    .stat-item:hover {
+        transform: scale(1.05);
+    }
+    
+    /* Plotly Charts Background */
+    .js-plotly-plot {
+        border-radius: 16px;
+        overflow: hidden;
+    }
+    
+    /* Footer Enhancement */
+    footer {
+        background: rgba(255, 255, 255, 0.02);
+        border-top: 1px solid rgba(255, 255, 255, 0.1);
+        backdrop-filter: blur(10px);
+    }
+    
+    /* Code Blocks */
+    code {
+        background: rgba(102, 126, 234, 0.1);
+        border: 1px solid rgba(102, 126, 234, 0.3);
+        border-radius: 6px;
+        padding: 2px 6px;
+        color: #a5b4fc;
+        font-size: 0.9em;
+    }
+    
+    pre {
+        background: rgba(255, 255, 255, 0.05);
+        border: 1px solid rgba(255, 255, 255, 0.1);
+        border-radius: 12px;
+        padding: 16px;
+    }
 </style>
-""",
-    unsafe_allow_html=True,
-)
+""", unsafe_allow_html=True)
 
-# --------------------------------------------------------------------
-# RBAC / LOGIN
-# --------------------------------------------------------------------
-
-rbac = init_rbac()
-
-if "user" not in st.session_state:
-    # Show only login page
-    render_login_page()
-    st.stop()
-
-user = st.session_state.user
-user_role = user["role"]
-
-# --------------------------------------------------------------------
-# BACKEND INITIALIZATION
-# --------------------------------------------------------------------
-
-
+# ---------------------------
+# Initialize systems
+# ---------------------------
 @st.cache_resource
 def init_db():
     return Database()
-
 
 @st.cache_resource
 def init_graph_rag():
@@ -147,982 +488,290 @@ def init_graph_rag():
         st.error(f"Error initializing GraphRAG: {str(e)}")
         return None
 
-
 db = init_db()
 graph_rag = init_graph_rag()
 network_viz = NetworkVisualization(db)
 
-# --------------------------------------------------------------------
-# PAGE STATE
-# --------------------------------------------------------------------
+# ========================================
+# SIDEBAR NAVIGATION (includes About link)
+# ========================================
+with st.sidebar:
+    # Logo/Title with gradient
+    st.markdown("""
+        <div style='text-align: center; padding: 20px 0;'>
+            <h1 style='font-size: 2rem; margin: 0;'>🕵️ CrimeGraphRAG</h1>
+            <p style='color: #a0aec0; font-size: 0.9rem; margin-top: 8px;'>AI-Powered Investigation Platform</p>
+        </div>
+    """, unsafe_allow_html=True)
+    
+    st.markdown("---")
+    st.markdown("### 📍 Navigation")
+    
+    # ABOUT button
+    if st.button("ℹ️ About", use_container_width=True, type="primary" if st.session_state.get('page') == 'About' else "secondary"):
+        st.session_state.page = 'About'
+        st.rerun()
+    
+    if st.button("📊 Dashboard", use_container_width=True, type="primary" if st.session_state.get('page') == 'Dashboard' else "secondary"):
+        st.session_state.page = 'Dashboard'
+        st.rerun()
+    
+    if st.button("💬 AI Assistant", use_container_width=True, type="primary" if st.session_state.get('page') == 'AI Assistant' else "secondary"):
+        st.session_state.page = 'AI Assistant'
+        st.rerun()
+    
+    if st.button("🧠 Graph Algorithms", use_container_width=True, type="primary" if st.session_state.get('page') == 'Graph Algorithms' else "secondary"):
+        st.session_state.page = 'Graph Algorithms'
+        st.rerun()
+    
+    if st.button("🕸️ Network Visualization", use_container_width=True, type="primary" if st.session_state.get('page') == 'Network Visualization' else "secondary"):
+        st.session_state.page = 'Network Visualization'
+        st.rerun()
+    
+    if st.button("🗺️ Geographic Mapping", use_container_width=True, type="primary" if st.session_state.get('page') == 'Geographic Mapping' else "secondary"):
+        st.session_state.page = 'Geographic Mapping'
+        st.rerun()
+    
+    if st.button("⏱️ Timeline Analysis", use_container_width=True, type="primary" if st.session_state.get('page') == 'Timeline Analysis' else "secondary"):
+        st.session_state.page = 'Timeline Analysis'
+        st.rerun()
+    
+    if st.button("📐 Graph Schema", use_container_width=True, type="primary" if st.session_state.get('page') == 'Graph Schema' else "secondary"):
+        st.session_state.page = 'Graph Schema'
+        st.rerun()
+    
+    st.markdown("---")
+    st.markdown("### 📊 System Status")
+    
+    try:
+        total_nodes = db.query("MATCH (n) RETURN count(n) as total")[0]['total']
+        total_rels = db.query("MATCH ()-[r]->() RETURN count(r) as total")[0]['total']
+        
+        # Modern metric cards
+        st.markdown(f"""
+            <div class='metric-card'>
+                <div style='color: #a0aec0; font-size: 0.85rem; font-weight: 600; margin-bottom: 8px;'>GRAPH NODES</div>
+                <div style='font-size: 1.8rem; font-weight: 700; color: #667eea;'>{total_nodes:,}</div>
+            </div>
+        """, unsafe_allow_html=True)
+        
+        st.markdown(f"""
+            <div class='metric-card' style='margin-top: 12px;'>
+                <div style='color: #a0aec0; font-size: 0.85rem; font-weight: 600; margin-bottom: 8px;'>RELATIONSHIPS</div>
+                <div style='font-size: 1.8rem; font-weight: 700; color: #764ba2;'>{total_rels:,}</div>
+            </div>
+        """, unsafe_allow_html=True)
+        
+        st.markdown("---")
+        
+        # Status badges
+        st.markdown(f"""
+            <div style='margin: 16px 0;'>
+                <div class='status-badge status-online'>🟢 System Online</div>
+            </div>
+            <div style='margin: 8px 0; color: #a0aec0; font-size: 0.85rem;'>
+                🕐 {datetime.now().strftime('%H:%M:%S')}<br/>
+                🗄️ Neo4j Connected
+            </div>
+        """, unsafe_allow_html=True)
+    except Exception:
+        st.markdown("<div class='status-badge status-offline'>🔴 System Offline</div>", unsafe_allow_html=True)
 
-if "page" not in st.session_state:
-    st.session_state.page = "Dashboard"
+# Initialize page state (default Dashboard)
+if 'page' not in st.session_state:
+    st.session_state.page = 'About'
 
 current_page = st.session_state.page
 
-# --------------------------------------------------------------------
-# SIDEBAR
-# --------------------------------------------------------------------
-with st.sidebar:
-    st.title("🕵️ CrimeGraphRAG")
-
-    # User info + logout + admin shortcuts (from RBAC file)
-    render_user_menu()
-
-    st.markdown("### 📍 Navigation")
-
-    pages = {
-        "Dashboard": ("📊", Permission.VIEW_DASHBOARD),
-        "AI Assistant": ("💬", Permission.USE_AI_ASSISTANT),
-        "Graph Algorithms": ("🧠", Permission.RUN_ALGORITHMS),
-        "Network Visualization": ("🕸️", Permission.VIEW_NETWORK),
-        "Geographic Mapping": ("🗺️", Permission.VIEW_MAP),
-    }
-
-    for page_name, (icon, perm) in pages.items():
-        if rbac.has_permission(user_role, perm):
-            is_current = st.session_state.get("page", "Dashboard") == page_name
-            if st.button(
-                f"{icon} {page_name}",
-                use_container_width=True,
-                type="primary" if is_current else "secondary",
-            ):
-                st.session_state.page = page_name
-                rbac.log_activity(user["id"], "page_view", page_name)
-                st.rerun()
-
-    st.markdown("---")
-    st.markdown("### 📊 System Status")
-
-    try:
-        total_nodes = db.query("MATCH (n) RETURN count(n) as total")[0]["total"]
-        total_rels = db.query("MATCH ()-[r]->() RETURN count(r) as total")[0]["total"]
-
-        st.metric("Graph Nodes", f"{total_nodes:,}")
-        st.metric("Relationships", f"{total_rels:,}")
-
-        st.markdown("---")
-        st.caption(f"🕐 {datetime.now().strftime('%H:%M:%S')}")
-        st.caption("🟢 System Online")
-        st.caption("🗄️ Neo4j Connected")
-    except Exception:
-        st.caption("🔴 System Offline")
-
-# --------------------------------------------------------------------
-# PAGE PERMISSION CHECK
-# --------------------------------------------------------------------
-
-if not check_page_permission(current_page):
-    st.error("🚫 You don't have permission to access this page")
-    st.session_state.page = "Dashboard"
-    st.rerun()
-
-# --------------------------------------------------------------------
-# MAIN HEADER
-# --------------------------------------------------------------------
-
-st.title("🕵️ CrimeGraphRAG Intelligence System")
-st.markdown(
-    f"Advanced Crime Investigation Platform | Logged in as: "
-    f"**{user['first_name']} {user['last_name']}** ({user['role'].replace('_', ' ').title()})"
-)
+# ========================================
+# MAIN HEADER with Enhanced Styling
+# ========================================
+st.markdown("""
+    <div style='text-align: center; padding: 40px 0 20px 0;'>
+        <h1 style='font-size: rem; margin-bottom: 8px;'>🕵️ CrimeGraphRAG Intelligence System</h1>
+        <p style='color: #a0aec0; font-size: 1.1rem;'>Advanced Crime Investigation Platform powered by Knowledge Graphs & AI</p>
+    </div>
+""", unsafe_allow_html=True)
 st.markdown("---")
 
-# --------------------------------------------------------------------
-# DASHBOARD PAGE
-# --------------------------------------------------------------------
-
-if current_page == "Dashboard":
-    st.markdown(
-        "<h2 style='text-align: center;'>📊 Crime Intelligence Dashboard</h2>",
-        unsafe_allow_html=True,
-    )
-    st.markdown(
-        "<p style='text-align: center; color: #94a3b8;'>Comprehensive overview of criminal activity and operational metrics</p>",
-        unsafe_allow_html=True,
-    )
-    st.markdown("")
-
-    # === CRITICAL METRICS ROW ===
-    col1, col2, col3, col4, col5 = st.columns(5)
-
-    crime_count = db.query("MATCH (c:Crime) RETURN count(c) as count")[0]["count"]
-    person_count = db.query("MATCH (p:Person) RETURN count(p) as count")[0]["count"]
-    org_count = db.query("MATCH (o:Organization) RETURN count(o) as count")[0]["count"]
-    evidence_count = db.query("MATCH (e:Evidence) RETURN count(e) as count")[0]["count"]
-    weapon_count = db.query("MATCH (w:Weapon) RETURN count(w) as count")[0]["count"]
-
-    with col1:
-        st.metric("🚨 Total Crimes", f"{crime_count:,}", delta="Real Chicago Data")
-
-    with col2:
-        st.metric("👤 Suspects", person_count, delta=f"{person_count} tracked")
-
-    with col3:
-        st.metric("🏴 Gangs", org_count, delta="Active")
-
-    with col4:
-        st.metric("📦 Evidence", evidence_count, delta="Catalogued")
-
-    with col5:
-        st.metric("🔫 Weapons", weapon_count, delta="Registered")
-
-    st.markdown("---")
-
-    # === THREAT ASSESSMENT ===
-    st.markdown(
-        '<div class="section-title">🎯 Threat Assessment & Priority Intelligence</div>',
-        unsafe_allow_html=True,
-    )
-
-    col1, col2, col3 = st.columns(3)
-
-    with col1:
-        repeat = db.query(
-            """
-            MATCH (p:Person)-[:PARTY_TO]->(c:Crime)
-            WITH p, count(c) as crimes
-            WHERE crimes > 2
-            RETURN count(p) as total, max(crimes) as max_crimes
-        """
-        )
-
-        if repeat and repeat[0]["total"] > 0:
-            st.markdown(
-                f"""
-            <div class="alert-box alert-critical">
-                <h4>⚠️ Serial Offenders</h4>
-                <p style='font-size: 1.4rem; margin: 10px 0 0 0;'>
-                    <strong>{repeat[0]['total']}</strong> suspects
-                </p>
-                <span style='color: #94a3b8; font-size: 0.9rem;'>
-                    Max: {repeat[0]['max_crimes']} crimes each
-                </span>
-            </div>
-            """,
-                unsafe_allow_html=True,
-            )
-
-    with col2:
-        armed = db.query(
-            """
-            MATCH (p:Person)-[:OWNS]->(w:Weapon)
-            OPTIONAL MATCH (p)-[:MEMBER_OF]->(o:Organization)
-            RETURN count(DISTINCT p) as total, count(DISTINCT o) as gangs
-        """
-        )
-
-        if armed and armed[0]["total"] > 0:
-            st.markdown(
-                f"""
-            <div class="alert-box alert-warning">
-                <h4>🔫 Armed Suspects</h4>
-                <p style='font-size: 1.4rem; margin: 10px 0 0 0;'>
-                    <strong>{armed[0]['total']}</strong> individuals
-                </p>
-                <span style='color: #94a3b8; font-size: 0.9rem;'>
-                    {armed[0]['gangs']} gang-affiliated
-                </span>
-            </div>
-            """,
-                unsafe_allow_html=True,
-            )
-
-    with col3:
-        connected = db.query(
-            """
-            MATCH (p:Person)-[:KNOWS]-(other:Person)
-            WITH p, count(DISTINCT other) as connections
-            WHERE connections > 5
-            RETURN count(p) as total, max(connections) as max_connections
-        """
-        )
-
-        if connected and connected[0]["total"] > 0:
-            st.markdown(
-                f"""
-            <div class="alert-box alert-info">
-                <h4>🕸️ Network Hubs</h4>
-                <p style='font-size: 1.4rem; margin: 10px 0 0 0;'>
-                    <strong>{connected[0]['total']}</strong> connectors
-                </p>
-                <span style='color: #94a3b8; font-size: 0.9rem;'>
-                    Max: {connected[0]['max_connections']} connections
-                </span>
-            </div>
-            """,
-                unsafe_allow_html=True,
-            )
-        else:
-            st.markdown(
-                f"""
-            <div class="alert-box alert-info">
-                <h4>🕸️ Network Analysis</h4>
-                <p style='font-size: 1.4rem; margin: 10px 0 0 0;'>
-                    <strong>{person_count}</strong> persons
-                </p>
-                <span style='color: #94a3b8; font-size: 0.9rem;'>
-                    In criminal network
-                </span>
-            </div>
-            """,
-                unsafe_allow_html=True,
-            )
-
-    st.markdown("---")
-
-    # === CRIME ANALYTICS ===
-    st.markdown(
-        '<div class="section-title">📈 Crime Analytics & Patterns</div>',
-        unsafe_allow_html=True,
-    )
-
-    col1, col2, col3 = st.columns([1.5, 1, 1])
-
-    # Crime Type Distribution
-    with col1:
-        st.markdown("#### Crime Type Distribution")
-        crime_types = db.query(
-            """
-            MATCH (c:Crime)
-            RETURN c.type as type, count(c) as count
-            ORDER BY count DESC
-            LIMIT 10
-        """
-        )
-
-        if crime_types:
-            df = pd.DataFrame(crime_types)
-
-            fig = px.bar(
-                df,
-                x="type",
-                y="count",
-                color="count",
-                color_continuous_scale="Reds",
-                text="count",
-            )
-
-            fig.update_traces(textposition="outside")
-            fig.update_layout(
-                plot_bgcolor="rgba(0,0,0,0)",
-                paper_bgcolor="rgba(0,0,0,0)",
-                font=dict(color="#e2e8f0"),
-                xaxis_title="Crime Type",
-                yaxis_title="Count",
-                showlegend=False,
-                height=400,
-                xaxis_tickangle=-45,
-            )
-            st.plotly_chart(fig, use_container_width=True)
-
-    # Severity Breakdown
-    with col2:
-        st.markdown("#### Severity Breakdown")
-        severity = db.query(
-            """
-            MATCH (c:Crime)
-            RETURN c.severity as severity, count(c) as count
-            ORDER BY count DESC
-        """
-        )
-
-        if severity:
-            df = pd.DataFrame(severity)
-
-            colors = {"severe": "#ef4444", "moderate": "#f59e0b", "minor": "#10b981"}
-
-            fig = px.pie(
-                df,
-                values="count",
-                names="severity",
-                color="severity",
-                color_discrete_map=colors,
-                hole=0.4,
-            )
-
-            fig.update_traces(textinfo="label+percent", textfont_size=14)
-            fig.update_layout(
-                plot_bgcolor="rgba(0,0,0,0)",
-                paper_bgcolor="rgba(0,0,0,0)",
-                font=dict(color="#e2e8f0"),
-                height=400,
-            )
-            st.plotly_chart(fig, use_container_width=True)
-
-    # Evidence Status
-    with col3:
-        st.markdown("#### Evidence Status")
-
-        evidence_sig = db.query(
-            """
-            MATCH (e:Evidence)
-            RETURN e.significance as significance, count(e) as count
-            ORDER BY 
-                CASE e.significance
-                    WHEN 'critical' THEN 1
-                    WHEN 'high' THEN 2
-                    WHEN 'medium' THEN 3
-                    ELSE 4
-                END
-        """
-        )
-
-        if evidence_sig:
-            df = pd.DataFrame(evidence_sig)
-
-            colors = {
-                "critical": "#ef4444",
-                "high": "#f59e0b",
-                "medium": "#3b82f6",
-                "low": "#10b981",
-            }
-
-            fig = px.bar(
-                df,
-                x="significance",
-                y="count",
-                color="significance",
-                color_discrete_map=colors,
-                text="count",
-            )
-
-            fig.update_traces(textposition="outside")
-            fig.update_layout(
-                plot_bgcolor="rgba(0,0,0,0)",
-                paper_bgcolor="rgba(0,0,0,0)",
-                font=dict(color="#e2e8f0"),
-                xaxis_title="Significance",
-                yaxis_title="Count",
-                showlegend=False,
-                height=400,
-            )
-            st.plotly_chart(fig, use_container_width=True)
-
-    st.markdown("---")
-
-    # === GANG INTELLIGENCE ===
-    st.markdown(
-        '<div class="section-title">🏴 Gang Intelligence & Organized Crime</div>',
-        unsafe_allow_html=True,
-    )
-
-    col1, col2 = st.columns([2, 1])
-
-    with col1:
-        st.markdown("#### Gang Activity Comparison")
-        gang_data = db.query(
-            """
-            MATCH (o:Organization)<-[:MEMBER_OF]-(p:Person)-[:PARTY_TO]->(c:Crime)
-            WITH o.name as gang, 
-                 count(DISTINCT p) as members,
-                 count(DISTINCT c) as crimes
-            RETURN gang, members, crimes
-            ORDER BY crimes DESC
-        """
-        )
-
-        if gang_data:
-            df = pd.DataFrame(gang_data)
-
-            fig = go.Figure()
-
-            fig.add_trace(
-                go.Bar(
-                    name="Members",
-                    x=df["gang"],
-                    y=df["members"],
-                    marker_color="#667eea",
-                    yaxis="y",
-                )
-            )
-
-            fig.add_trace(
-                go.Scatter(
-                    name="Crimes",
-                    x=df["gang"],
-                    y=df["crimes"],
-                    mode="lines+markers",
-                    marker=dict(
-                        size=12, color="#ef4444", line=dict(width=2, color="white")
-                    ),
-                    line=dict(width=3, color="#ef4444"),
-                    yaxis="y2",
-                )
-            )
-
-            fig.update_layout(
-                plot_bgcolor="rgba(0,0,0,0)",
-                paper_bgcolor="rgba(0,0,0,0)",
-                font=dict(color="#e2e8f0"),
-                yaxis=dict(title="Members", side="left", color="#667eea"),
-                yaxis2=dict(
-                    title="Crimes", side="right", overlaying="y", color="#ef4444"
-                ),
-                legend=dict(orientation="h", yanchor="bottom", y=1.02),
-                height=400,
-                xaxis_tickangle=-45,
-            )
-            st.plotly_chart(fig, use_container_width=True)
-
-    with col2:
-        st.markdown("#### Gang Threat Levels")
-
-        if gang_data:
-            df = pd.DataFrame(gang_data)
-            for i, gang in enumerate(df.to_dict("records"), 1):
-                threat_level = (
-                    "🔴 High"
-                    if gang["crimes"] > 30
-                    else "🟠 Medium"
-                    if gang["crimes"] > 15
-                    else "🟡 Low"
-                )
-                color = (
-                    "#ef4444"
-                    if gang["crimes"] > 30
-                    else "#f59e0b"
-                    if gang["crimes"] > 15
-                    else "#3b82f6"
-                )
-
-                st.markdown(
-                    f"""
-                <div style='background: rgba(255,255,255,0.05); padding: 15px; border-radius: 10px; margin: 10px 0; border-left: 4px solid {color};'>
-                    <strong style='font-size: 1.05rem;'>{gang['gang']}</strong>
-                    <div style='margin-top: 8px; color: #94a3b8; font-size: 0.9rem;'>
-                        👥 {gang['members']} members • 🚨 {gang['crimes']} crimes<br/>
-                        Threat: {threat_level}
-                    </div>
-                </div>
-                """,
-                    unsafe_allow_html=True,
-                )
-
-    st.markdown("---")
-
-    # === INVESTIGATOR WORKLOAD ===
-    st.markdown(
-        '<div class="section-title">👮 Investigator Workload & Performance</div>',
-        unsafe_allow_html=True,
-    )
-
-    col1, col2 = st.columns(2)
-
-    # Case Distribution by Investigator
-    with col1:
-        st.markdown("#### Case Distribution by Investigator")
-        inv_data = db.query(
-            """
-            MATCH (i:Investigator)<-[:INVESTIGATED_BY]-(c:Crime)
-            WITH i.name as investigator,
-                 count(CASE WHEN c.status = 'solved' THEN 1 END) as solved,
-                 count(CASE WHEN c.status <> 'solved' THEN 1 END) as active
-            RETURN investigator, solved, active
-            ORDER BY (solved + active) DESC
-            LIMIT 10
-        """
-        )
-
-        if inv_data:
-            df = pd.DataFrame(inv_data)
-
-            fig = go.Figure()
-
-            fig.add_trace(
-                go.Bar(
-                    name="Solved",
-                    x=df["investigator"],
-                    y=df["solved"],
-                    marker_color="#10b981",
-                    text=df["solved"],
-                    textposition="auto",
-                )
-            )
-
-            fig.add_trace(
-                go.Bar(
-                    name="Active",
-                    x=df["investigator"],
-                    y=df["active"],
-                    marker_color="#f59e0b",
-                    text=df["active"],
-                    textposition="auto",
-                )
-            )
-
-            fig.update_layout(
-                barmode="stack",
-                plot_bgcolor="rgba(0,0,0,0)",
-                paper_bgcolor="rgba(0,0,0,0)",
-                font=dict(color="#e2e8f0"),
-                height=400,
-                xaxis_tickangle=-45,
-                legend=dict(orientation="h", yanchor="bottom", y=1.02),
-                xaxis_title="Investigator",
-                yaxis_title="Cases",
-            )
-            st.plotly_chart(fig, use_container_width=True)
-
-    # Department Performance
-    with col2:
-        st.markdown("#### Department Performance")
-
-        dept_data = db.query(
-            """
-            MATCH (i:Investigator)
-            RETURN i.department as department, 
-                   count(i) as officers,
-                   sum(i.cases_solved) as total_solved,
-                   sum(i.active_cases) as total_active
-            ORDER BY total_solved DESC
-        """
-        )
-
-        if dept_data:
-            df = pd.DataFrame(dept_data)
-
-            fig = px.bar(
-                df,
-                x="department",
-                y=["total_solved", "total_active"],
-                barmode="group",
-                color_discrete_map={
-                    "total_solved": "#10b981",
-                    "total_active": "#f59e0b",
-                },
-                labels={"value": "Cases", "variable": "Status"},
-            )
-
-            fig.update_layout(
-                plot_bgcolor="rgba(0,0,0,0)",
-                paper_bgcolor="rgba(0,0,0,0)",
-                font=dict(color="#e2e8f0"),
-                height=400,
-                xaxis_title="Department",
-                yaxis_title="Cases",
-            )
-            st.plotly_chart(fig, use_container_width=True)
-
-    st.markdown("---")
-
-    # === GEOGRAPHIC ANALYSIS ===
-    st.markdown(
-        '<div class="section-title">🗺️ Geographic Crime Distribution</div>',
-        unsafe_allow_html=True,
-    )
-
-    col1, col2 = st.columns([2, 1])
-
-    with col1:
-        st.markdown("#### Crime Density by District")
-        district_data = db.query(
-            """
-            MATCH (c:Crime)-[:OCCURRED_AT]->(l:Location)
-            WHERE l.district IS NOT NULL
-            RETURN l.district as district, count(c) as crimes
-            ORDER BY crimes DESC
-            LIMIT 15
-        """
-        )
-
-        if district_data:
-            df = pd.DataFrame(district_data)
-
-            fig = px.bar(
-                df,
-                x="district",
-                y="crimes",
-                color="crimes",
-                color_continuous_scale="Plasma",
-                text="crimes",
-            )
-
-            fig.update_traces(textposition="outside")
-            fig.update_layout(
-                plot_bgcolor="rgba(0,0,0,0)",
-                paper_bgcolor="rgba(0,0,0,0)",
-                font=dict(color="#e2e8f0"),
-                xaxis_title="District",
-                yaxis_title="Crime Count",
-                showlegend=False,
-                height=400,
-            )
-            st.plotly_chart(fig, use_container_width=True)
-
-    with col2:
-        st.markdown("#### Top 10 Hotspots")
-        hotspots_list = db.query(
-            """
-            MATCH (c:Crime)-[:OCCURRED_AT]->(l:Location)
-            RETURN l.name as location, l.district as district, count(c) as crimes
-            ORDER BY crimes DESC
-            LIMIT 10
-        """
-        )
-
-        if hotspots_list:
-            for i, spot in enumerate(hotspots_list, 1):
-                intensity = (
-                    "🔥"
-                    if spot["crimes"] > 15
-                    else "🟠"
-                    if spot["crimes"] > 10
-                    else "🟡"
-                )
-
-                st.markdown(
-                    f"""
-                <div style='background: rgba(255,255,255,0.05); padding: 10px; border-radius: 8px; margin: 6px 0;'>
-                    <strong>{i}. {spot['location'][:35]}</strong>
-                    <div style='color: #94a3b8; font-size: 0.85rem; margin-top: 4px;'>
-                        District {spot['district']} • {intensity} {spot['crimes']} crimes
-                    </div>
-                </div>
-                """,
-                    unsafe_allow_html=True,
-                )
-
-    st.markdown("---")
-
-    # === HIGH-RISK OFFENDERS ===
-    st.markdown(
-        '<div class="section-title">🎯 High-Risk Offender Profiles</div>',
-        unsafe_allow_html=True,
-    )
-
-    targets = db.query(
-        """
-        MATCH (p:Person)-[:PARTY_TO]->(c:Crime)
-        WITH p, count(c) as crimes
-        WHERE crimes > 1
-        OPTIONAL MATCH (p)-[:OWNS]->(w:Weapon)
-        OPTIONAL MATCH (p)-[:MEMBER_OF]->(o:Organization)
-        RETURN p.name as Name,
-               p.age as Age,
-               crimes as Crimes,
-               count(DISTINCT w) as Weapons,
-               COALESCE(o.name, 'Independent') as Gang,
-               CASE 
-                   WHEN crimes > 4 AND count(w) > 0 THEN '🔴 Critical'
-                   WHEN crimes > 3 THEN '🟠 High'
-                   WHEN crimes > 1 THEN '🟡 Medium'
-                   ELSE '🟢 Low'
-               END as Threat
-        ORDER BY crimes DESC, Weapons DESC
-        LIMIT 20
-    """
-    )
-
-    if targets:
-        df = pd.DataFrame(targets)
-
-        def color_threat(val):
-            if "🔴" in str(val):
-                return "background-color: rgba(239, 68, 68, 0.3); font-weight: bold"
-            elif "🟠" in str(val):
-                return "background-color: rgba(245, 158, 11, 0.3); font-weight: bold"
-            elif "🟡" in str(val):
-                return "background-color: rgba(59, 130, 246, 0.3)"
-            else:
-                return "background-color: rgba(16, 185, 129, 0.2)"
-
-        styled = df.style.applymap(color_threat, subset=["Threat"])
-        st.dataframe(styled, use_container_width=True, hide_index=True, height=450)
-
-    st.markdown("---")
-
-    # === LATEST CRIMES ===
-    st.markdown(
-        '<div class="section-title">🚨 Latest Criminal Activity</div>',
-        unsafe_allow_html=True,
-    )
-
-    recent = db.query(
-        """
-        MATCH (c:Crime)
-        OPTIONAL MATCH (c)-[:OCCURRED_AT]->(l:Location)
-        OPTIONAL MATCH (p:Person)-[:PARTY_TO]->(c)
-        RETURN c.id as id,
-               c.type as type,
-               c.date as date,
-               c.severity as severity,
-               c.status as status,
-               COALESCE(l.name, 'Unknown') as location,
-               COALESCE(l.district, 'N/A') as district,
-               COALESCE(collect(DISTINCT p.name)[0..2], ['Unknown']) as suspects
-        ORDER BY c.date DESC
-        LIMIT 15
-    """
-    )
-
-    if recent:
-        df = pd.DataFrame(recent)
-        df["suspects_str"] = df["suspects"].apply(
-            lambda x: ", ".join(x) if isinstance(x, list) else "Unknown"
-        )
-
-        # Color mapping
-        severity_colors = {"severe": "#ef4444", "moderate": "#f59e0b", "minor": "#10b981"}
-        df["color"] = df["severity"].map(severity_colors)
-
-        # Timeline visualization
-        fig = go.Figure()
-        fig.add_trace(
-            go.Scatter(
-                x=df["date"],
-                y=df["type"],
-                mode="markers",
-                marker=dict(
-                    size=20,
-                    color=df["color"],
-                    line=dict(width=2, color="white"),
-                    symbol="circle",
-                ),
-                text=df.apply(
-                    lambda row: f"<b>{row['type']}</b><br>Location: {row['location']}<br>Suspects: {row['suspects_str']}<br>Status: {row['status']}",
-                    axis=1,
-                ),
-                hovertemplate="%{text}<extra></extra>",
-                showlegend=False,
-            )
-        )
-
-        fig.update_layout(
-            title="Crime Timeline (Recent Activity)",
-            plot_bgcolor="rgba(0,0,0,0)",
-            paper_bgcolor="rgba(0,0,0,0)",
-            font=dict(color="#e2e8f0"),
-            height=400,
-            xaxis_title="Date",
-            yaxis_title="Crime Type",
-            xaxis=dict(gridcolor="rgba(255,255,255,0.1)"),
-            yaxis=dict(gridcolor="rgba(255,255,255,0.1)"),
-        )
-        st.plotly_chart(fig, use_container_width=True)
-
-        # Table view
-        st.markdown("#### 📋 Detailed Activity Log")
-
-        display_df = df[
-            ["id", "type", "date", "severity", "status", "location", "district", "suspects_str"]
-        ].copy()
-        display_df.columns = [
-            "ID",
-            "Type",
-            "Date",
-            "Severity",
-            "Status",
-            "Location",
-            "District",
-            "Suspects",
-        ]
-
-        def color_severity(val):
-            if val == "severe":
-                return "background-color: rgba(239, 68, 68, 0.25)"
-            elif val == "moderate":
-                return "background-color: rgba(245, 158, 11, 0.25)"
-            else:
-                return "background-color: rgba(16, 185, 129, 0.2)"
-
-        styled = display_df.style.applymap(color_severity, subset=["Severity"])
-        st.dataframe(styled, use_container_width=True, hide_index=True, height=400)
-
-# --------------------------------------------------------------------
-# AI ASSISTANT PAGE
-# --------------------------------------------------------------------
-
-elif current_page == "AI Assistant":
+# ========================================
+# PAGES
+# ========================================
+
+# Dashboard page
+if current_page == 'Dashboard':
+    render_enhanced_dashboard(db)
+
+# AI Assistant page
+elif current_page == 'AI Assistant':
     st.markdown("## 💬 AI Investigation Assistant")
     st.markdown("Ask questions in natural language - powered by Graph RAG")
-
-    # Check if GraphRAG is initialized
+    
     if graph_rag is None:
         st.error("⚠️ AI Assistant requires OpenRouter API key")
-        st.info(
-            """
+        st.info("""
         **Setup Instructions:**
-        1. Get free API key: https://openrouter.ai/keys  
-        2. Add to config.py: `OPENAI_API_KEY = "sk-or-v1-your-key"`  
-        3. Set: `OPENAI_BASE_URL = "https://openrouter.ai/api/v1"`  
+        1. Get free API key: https://openrouter.ai/keys
+        2. Add to config.py: `OPENAI_API_KEY = "sk-or-v1-your-key"`
+        3. Set: `OPENAI_BASE_URL = "https://openrouter.ai/api/v1"`
         4. Restart app
-        """
-        )
+        """)
         st.stop()
-
-    # Session state for chat
-    if "chat_history" not in st.session_state:
+    
+    if 'chat_history' not in st.session_state:
         st.session_state.chat_history = []
-    if "conversation_context" not in st.session_state:
+    if 'conversation_context' not in st.session_state:
         st.session_state.conversation_context = []
+    
+    # Quick Actions + Quick Questions UI (kept as in your app)
+    st.markdown("<h4 style='color: #667eea; margin-top: 10px; margin-bottom: 12px; font-weight:700;'>⚡ Quick Actions</h4>", unsafe_allow_html=True)
+    st.markdown("""
+<style>
+.qacards .stButton>button { width:100%; min-height:100px; border-radius:12px; background: linear-gradient(135deg, rgba(102,126,234,0.10), rgba(118,75,162,0.10)); border:1px solid rgba(102,126,234,0.16); color:#e2e8f0; font-weight:700; text-align:left; padding:14px; display:flex; flex-direction:column; justify-content:center; gap:8px; }
+.reccards .stButton>button { width:100%; min-height:80px; border-radius:12px; background: linear-gradient(135deg, rgba(102,126,234,0.08), rgba(118,75,162,0.08)); border:1px solid rgba(102,126,234,0.14); color:#e2e8f0; padding:12px; font-weight:600; display:flex; align-items:center; justify-content:center; }
+.q-grid { display:flex; gap:18px; align-items:stretch; }
+@media (max-width:780px) { .q-grid { flex-direction:column; gap:12px; } }
+</style>
+    """, unsafe_allow_html=True)
 
-    # Quick question buttons
-    with st.expander("💡 Quick Questions", expanded=True):
-        col1, col2, col3 = st.columns(3)
-
-        with col1:
-            if st.button("📊 Database stats", use_container_width=True):
-                st.session_state.pending_question = "Give me database statistics"
+    quick_actions = [
+        ("📊", "Stats", "Give me database statistics"),
+        ("🏴", "Gangs", "Which criminal organizations operate in Chicago?"),
+        ("⚠️", "Repeat Offenders", "Who are the repeat offenders with multiple crimes?"),
+        ("🔫", "Armed Suspects", "Show me armed gang members"),
+        ("📍", "Hotspots", "Which locations have the most crimes?"),
+        ("👮", "Officers", "Show all investigators and their workload")
+    ]
+    qa_cols = st.columns(3, gap="large")
+    st.markdown('<div class="qacards q-grid">', unsafe_allow_html=True)
+    for idx, (icon, label, question) in enumerate(quick_actions):
+        col = qa_cols[idx % 3]
+        with col:
+            btn_label = f"{icon}\n\n{label}"
+            if st.button(btn_label, key=f"quick_card_{idx}", use_container_width=True):
+                st.session_state.pending_question = question
                 st.rerun()
+    st.markdown('</div>', unsafe_allow_html=True)
 
-            if st.button("🏴 List gangs", use_container_width=True):
-                st.session_state.pending_question = (
-                    "Which criminal organizations operate in Chicago?"
-                )
-                st.rerun()
-
-        with col2:
-            if st.button("⚠️ Repeat offenders", use_container_width=True):
-                st.session_state.pending_question = (
-                    "Who are the repeat offenders with multiple crimes?"
-                )
-                st.rerun()
-
-            if st.button("🔫 Armed suspects", use_container_width=True):
-                st.session_state.pending_question = "Show me armed gang members"
-                st.rerun()
-
-        with col3:
-            if st.button("📍 Crime hotspots", use_container_width=True):
-                st.session_state.pending_question = (
-                    "Which locations have the most crimes?"
-                )
-                st.rerun()
-
-            if st.button("👮 Investigators", use_container_width=True):
-                st.session_state.pending_question = (
-                    "Show all investigators and their workload"
-                )
-                st.rerun()
+    # Quick Questions (Recommendations)
+    with st.expander("💡Quick Questions", expanded=True):
+        if len(st.session_state.chat_history) == 0:
+            recommendations = [
+                "What are the most common crime types in the database?",
+                "Show me the top 5 criminal organizations by activity",
+                "Which districts have the highest crime rates?",
+                "Find connections between gang members",
+                "What weapons are most commonly used in crimes?",
+                "Show me unsolved cases with critical evidence"
+            ]
+        elif any("gang" in msg["content"].lower() for msg in st.session_state.chat_history):
+            recommendations = [
+                "Which gang members are armed?",
+                "Show connections between different gangs",
+                "Find the most influential gang members",
+                "Which gangs operate in multiple districts?",
+                "Show gang-related violent crimes",
+                "Find rival gang conflicts"
+            ]
+        else:
+            recommendations = [
+                "Show me recent high-severity crimes",
+                "Find suspects with multiple aliases",
+                "Which investigators have the best solve rates?",
+                "Show evidence connections across cases",
+                "Find potential witness relationships",
+                "Identify crime pattern clusters"
+            ]
+        rec_cols = st.columns(3, gap="large")
+        st.markdown('<div class="reccards q-grid">', unsafe_allow_html=True)
+        for idx, recommendation in enumerate(recommendations):
+            col = rec_cols[idx % 3]
+            with col:
+                label_html = recommendation.replace('"', '\\"')
+                if st.button(label_html, key=f"rec_card_{idx}", use_container_width=True):
+                    st.session_state.pending_question = recommendation
+                    st.rerun()
+        st.markdown('</div>', unsafe_allow_html=True)
 
     st.markdown("---")
-
     # Handle pending quick question
-    if "pending_question" in st.session_state and st.session_state.pending_question:
+    if 'pending_question' in st.session_state and st.session_state.pending_question:
         question = st.session_state.pending_question
         st.session_state.pending_question = None
-
         st.session_state.chat_history.append({"role": "user", "content": question})
-
         with st.spinner("🔍 Analyzing..."):
-            result = graph_rag.ask_with_context(
-                question, st.session_state.conversation_context
-            )
-            answer = result["answer"]
-            cypher = result.get("cypher_queries", [])
-            context_data = result.get("context", {})
-
-            st.session_state.conversation_context.append(
-                {"role": "user", "content": question}
-            )
-            st.session_state.conversation_context.append(
-                {"role": "assistant", "content": answer}
-            )
-            st.session_state.chat_history.append(
-                {
-                    "role": "assistant",
-                    "content": answer,
-                    "cypher": cypher,
-                    "context": context_data,
-                }
-            )
-
+            result = graph_rag.ask_with_context(question, st.session_state.conversation_context)
+            answer = result['answer']
+            cypher = result.get('cypher_queries', [])
+            context_data = result.get('context', {})
+            st.session_state.conversation_context.append({"role": "user", "content": question})
+            st.session_state.conversation_context.append({"role": "assistant", "content": answer})
+            st.session_state.chat_history.append({
+                "role": "assistant",
+                "content": answer,
+                "cypher": cypher,
+                "context": context_data
+            })
         st.rerun()
 
-    # Show chat history
+    # Display chat history
     for message in st.session_state.chat_history:
         with st.chat_message(message["role"]):
             st.markdown(message["content"])
-
-            if (
-                message["role"] == "assistant"
-                and "cypher" in message
-                and message["cypher"]
-            ):
+            if message["role"] == "assistant" and "cypher" in message and message["cypher"]:
                 with st.expander("🔧 View Cypher Queries", expanded=False):
                     st.markdown("**Graph queries executed:**")
                     st.caption("💡 Test these in Neo4j Browser: http://localhost:7474")
                     st.markdown("---")
-
                     for idx, (name, query) in enumerate(message["cypher"], 1):
                         st.markdown(f"**{idx}. {name}**")
                         st.code(query, language="cypher")
                         if idx < len(message["cypher"]):
                             st.markdown("---")
-
-                if "context" in message and message["context"]:
-                    with st.expander("📊 Raw Data", expanded=False):
-                        for key, value in message["context"].items():
-                            if value and value != {"error": "Could not fetch stats"}:
-                                st.markdown(
-                                    f"**{key.replace('_', ' ').title()}:**"
-                                )
-                                st.json(
-                                    value[:3] if isinstance(value, list) else value
-                                )
+                    if "context" in message and message["context"]:
+                        with st.expander("📊 Raw Data", expanded=False):
+                            for key, value in message["context"].items():
+                                if value and value != {'error': 'Could not fetch stats'}:
+                                    st.markdown(f"**{key.replace('_', ' ').title()}:**")
+                                    st.json(value[:3] if isinstance(value, list) else value)
 
     # Chat input
     if prompt := st.chat_input("Ask about crimes, suspects, gangs, evidence..."):
-        st.session_state.chat_history.append(
-            {"role": "user", "content": prompt}
-        )
-
+        st.session_state.chat_history.append({"role": "user", "content": prompt})
         with st.chat_message("user"):
             st.markdown(prompt)
-
         with st.chat_message("assistant"):
             with st.spinner("🔍 Investigating..."):
-                result = graph_rag.ask_with_context(
-                    prompt, st.session_state.conversation_context
-                )
-                answer = result["answer"]
-                cypher = result.get("cypher_queries", [])
-                context_data = result.get("context", {})
-
+                result = graph_rag.ask_with_context(prompt, st.session_state.conversation_context)
+                answer = result['answer']
+                cypher = result.get('cypher_queries', [])
+                context_data = result.get('context', {})
                 st.markdown(answer)
-
                 if cypher:
                     with st.expander("🔧 View Cypher Queries", expanded=False):
                         st.markdown("**Graph queries executed:**")
-                        st.caption(
-                            "💡 Test in Neo4j Browser: http://localhost:7474"
-                        )
+                        st.caption("💡 Test in Neo4j Browser: http://localhost:7474")
                         st.markdown("---")
-
                         for idx, (name, query) in enumerate(cypher, 1):
                             st.markdown(f"**{idx}. {name}**")
                             st.code(query, language="cypher")
                             if idx < len(cypher):
                                 st.markdown("---")
+                        with st.expander("📊 Raw Data", expanded=False):
+                            for key, value in context_data.items():
+                                if value and value != {'error': 'Could not fetch stats'}:
+                                    st.markdown(f"**{key.replace('_', ' ').title()}:**")
+                                    st.json(value[:3] if isinstance(value, list) else value)
+                st.session_state.conversation_context.append({"role": "user", "content": prompt})
+                st.session_state.conversation_context.append({"role": "assistant", "content": answer})
+                st.session_state.chat_history.append({
+                    "role": "assistant",
+                    "content": answer,
+                    "cypher": cypher,
+                    "context": context_data
+                })
 
-                    with st.expander("📊 Raw Data", expanded=False):
-                        for key, value in context_data.items():
-                            if value and value != {"error": "Could not fetch stats"}:
-                                st.markdown(
-                                    f"**{key.replace('_', ' ').title()}:**"
-                                )
-                                st.json(
-                                    value[:3] if isinstance(value, list) else value
-                                )
-
-                st.session_state.conversation_context.append(
-                    {"role": "user", "content": prompt}
-                )
-                st.session_state.conversation_context.append(
-                    {"role": "assistant", "content": answer}
-                )
-                st.session_state.chat_history.append(
-                    {
-                        "role": "assistant",
-                        "content": answer,
-                        "cypher": cypher,
-                        "context": context_data,
-                    }
-                )
-
-    # Clear conversation button
+    # Controls
     col1, col2 = st.columns([1, 5])
     with col1:
         if st.button("🗑️ Clear", use_container_width=True):
@@ -1130,745 +779,197 @@ elif current_page == "AI Assistant":
             st.session_state.conversation_context = []
             st.rerun()
 
-# --------------------------------------------------------------------
-# GRAPH ALGORITHMS PAGE
-# --------------------------------------------------------------------
-
-elif current_page == "Graph Algorithms":
+# Graph Algorithms page
+elif current_page == 'Graph Algorithms':
     render_graph_algorithms_page(db)
 
-# --------------------------------------------------------------------
-# NETWORK VISUALIZATION PAGE
-# --------------------------------------------------------------------
-
-elif current_page == "Network Visualization":
+# Network Visualization page
+elif current_page == 'Network Visualization':
     st.markdown("## 🕸️ Criminal Network Visualization")
     st.markdown("Interactive graph visualization of criminal connections")
     st.markdown("---")
     network_viz.render()
 
-# --------------------------------------------------------------------
-# GEOGRAPHIC MAPPING PAGE
-# --------------------------------------------------------------------
-
-elif current_page == "Geographic Mapping":
+# Geographic Mapping page
+elif current_page == 'Geographic Mapping':
     render_geographic_page(db)
 
-# --------------------------------------------------------------------
-# USER MANAGEMENT PAGE (ADMIN ONLY)
-# --------------------------------------------------------------------
+# Timeline Analysis page
+elif current_page == 'Timeline Analysis':
+    render_timeline_interface(db)
 
-# USER MANAGEMENT PAGE IMPLEMENTATION
-# Replace the User Management section in your app.py with this complete implementation
+# Graph Schema page
+elif current_page == 'Graph Schema':
+    render_schema_page(db)
 
-# --------------------------------------------------------------------
-# USER MANAGEMENT PAGE (ADMIN ONLY)
-# --------------------------------------------------------------------
-
-elif current_page == "User Management":
-    if user_role != Role.ADMIN.value:
-        st.error("🚫 Admin access required")
-        st.stop()
-    
-    st.markdown("## 👥 User Management")
-    st.markdown("Manage system users, roles, and permissions")
-    
-    # Tabs for different management functions
-    tab1, tab2, tab3, tab4 = st.tabs(["👤 All Users", "➕ Add User", "🔧 Edit User", "📊 User Statistics"])
-    
-    # Tab 1: All Users
-    with tab1:
-        st.markdown("### 📋 System Users")
-        
-        # Get all users
-        users = rbac.get_all_users()
-        
-        if users:
-            # Search and filter
-            col1, col2, col3 = st.columns([2, 1, 1])
-            with col1:
-                search = st.text_input("🔍 Search users", placeholder="Search by name, username, or department...")
-            with col2:
-                role_filter = st.selectbox("Filter by Role", 
-                    ["All Roles", "admin", "chief_officer", "detective", "police_officer"])
-            with col3:
-                status_filter = st.selectbox("Filter by Status", 
-                    ["All", "Active", "Inactive"])
-            
-            # Convert to DataFrame
-            df = pd.DataFrame(users)
-            
-            # Apply search filter
-            if search:
-                mask = df.apply(lambda row: row.astype(str).str.contains(search, case=False).any(), axis=1)
-                df = df[mask]
-            
-            # Apply role filter
-            if role_filter != "All Roles":
-                df = df[df['role'] == role_filter]
-            
-            # Apply status filter
-            if status_filter == "Active":
-                df = df[df['is_active'] == 1]
-            elif status_filter == "Inactive":
-                df = df[df['is_active'] == 0]
-            
-            # Display metrics
-            col1, col2, col3, col4 = st.columns(4)
-            with col1:
-                st.metric("Total Users", len(users))
-            with col2:
-                active_users = len([u for u in users if u['is_active']])
-                st.metric("Active Users", active_users)
-            with col3:
-                admin_count = len([u for u in users if u['role'] == 'admin'])
-                st.metric("Administrators", admin_count)
-            with col4:
-                detective_count = len([u for u in users if u['role'] == 'detective'])
-                st.metric("Detectives", detective_count)
-            
-            st.markdown("---")
-            
-            # Display users table
-            if not df.empty:
-                # Format the dataframe
-                display_df = df[['username', 'first_name', 'last_name', 'role', 
-                                'badge_number', 'department', 'is_active', 'last_login']].copy()
-                
-                # Format role display
-                display_df['role'] = display_df['role'].apply(lambda x: x.replace('_', ' ').title())
-                
-                # Format status
-                display_df['status'] = display_df['is_active'].apply(lambda x: '✅ Active' if x else '❌ Inactive')
-                
-                # Format last login
-                display_df['last_login'] = pd.to_datetime(display_df['last_login']).dt.strftime('%Y-%m-%d %H:%M')
-                display_df['last_login'] = display_df['last_login'].fillna('Never')
-                
-                # Select columns to display
-                display_df = display_df[['username', 'first_name', 'last_name', 'role', 
-                                        'badge_number', 'department', 'status', 'last_login']]
-                display_df.columns = ['Username', 'First Name', 'Last Name', 'Role', 
-                                     'Badge #', 'Department', 'Status', 'Last Login']
-                
-                # Style the dataframe
-                def style_status(val):
-                    if '✅' in str(val):
-                        return 'background-color: rgba(16, 185, 129, 0.2)'
-                    elif '❌' in str(val):
-                        return 'background-color: rgba(239, 68, 68, 0.2)'
-                    return ''
-                
-                styled = display_df.style.applymap(style_status, subset=['Status'])
-                st.dataframe(styled, use_container_width=True, height=400)
-                
-                # Export button
-                csv = display_df.to_csv(index=False)
-                st.download_button(
-                    label="📥 Export Users CSV",
-                    data=csv,
-                    file_name=f"users_{datetime.now().strftime('%Y%m%d_%H%M%S')}.csv",
-                    mime="text/csv"
-                )
-            else:
-                st.info("No users found matching the filters")
-        else:
-            st.info("No users in the system")
-    
-    # Tab 2: Add User
-    with tab2:
-        st.markdown("### ➕ Add New User")
-        
-        with st.form("add_user_form"):
-            col1, col2 = st.columns(2)
-            
-            with col1:
-                st.markdown("#### Account Information")
-                new_username = st.text_input("Username*", placeholder="john_doe")
-                new_password = st.text_input("Password*", type="password", 
-                    placeholder="At least 8 characters")
-                confirm_password = st.text_input("Confirm Password*", type="password")
-                new_email = st.text_input("Email", placeholder="john.doe@police.gov")
-                new_role = st.selectbox("Role*", 
-                    ["police_officer", "detective", "chief_officer", "admin"])
-            
-            with col2:
-                st.markdown("#### Personal Information")
-                new_first = st.text_input("First Name*", placeholder="John")
-                new_last = st.text_input("Last Name*", placeholder="Doe")
-                new_badge = st.text_input("Badge Number*", placeholder="OFF001")
-                new_dept = st.text_input("Department*", placeholder="Homicide")
-                new_phone = st.text_input("Phone", placeholder="+1234567890")
-            
-            st.markdown("---")
-            
-            col1, col2, col3 = st.columns([2, 1, 1])
-            with col2:
-                submitted = st.form_submit_button("✅ Create User", type="primary", use_container_width=True)
-            with col3:
-                clear = st.form_submit_button("🔄 Clear Form", use_container_width=True)
-            
-            if submitted:
-                # Validation
-                if not all([new_username, new_password, new_first, new_last, new_badge, new_dept]):
-                    st.error("❌ Please fill all required fields marked with *")
-                elif new_password != confirm_password:
-                    st.error("❌ Passwords do not match")
-                elif len(new_password) < 8:
-                    st.error("❌ Password must be at least 8 characters")
-                else:
-                    # Create user (this would actually save to database)
-                    st.success(f"✅ User '{new_username}' created successfully!")
-                    rbac.log_activity(user['id'], 'user_created', f"Created user: {new_username}")
-                    st.balloons()
-    
-    # Tab 3: Edit User
-    with tab3:
-        st.markdown("### 🔧 Edit User")
-        
-        users = rbac.get_all_users()
-        if users:
-            # User selection
-            user_options = {f"{u['username']} ({u['first_name']} {u['last_name']})": u for u in users}
-            selected = st.selectbox("Select User to Edit", list(user_options.keys()))
-            
-            if selected:
-                selected_user = user_options[selected]
-                
-                st.markdown("---")
-                
-                with st.form("edit_user_form"):
-                    col1, col2 = st.columns(2)
-                    
-                    with col1:
-                        st.markdown("#### Account Settings")
-                        edit_username = st.text_input("Username", value=selected_user['username'])
-                        edit_email = st.text_input("Email", value=selected_user.get('email', ''))
-                        edit_role = st.selectbox("Role", 
-                            ["police_officer", "detective", "chief_officer", "admin"],
-                            index=["police_officer", "detective", "chief_officer", "admin"].index(selected_user['role'])
-                            if selected_user['role'] in ["police_officer", "detective", "chief_officer", "admin"] else 0)
-                        edit_active = st.checkbox("Account Active", value=selected_user['is_active'])
-                        reset_password = st.checkbox("Reset Password")
-                        if reset_password:
-                            new_pass = st.text_input("New Password", type="password")
-                    
-                    with col2:
-                        st.markdown("#### Personal Information")
-                        edit_first = st.text_input("First Name", value=selected_user['first_name'])
-                        edit_last = st.text_input("Last Name", value=selected_user['last_name'])
-                        edit_badge = st.text_input("Badge Number", value=selected_user['badge_number'])
-                        edit_dept = st.text_input("Department", value=selected_user['department'])
-                        edit_phone = st.text_input("Phone", value=selected_user.get('phone', ''))
-                    
-                    st.markdown("---")
-                    
-                    col1, col2, col3, col4 = st.columns(4)
-                    with col2:
-                        save = st.form_submit_button("💾 Save Changes", type="primary", use_container_width=True)
-                    with col3:
-                        deactivate = st.form_submit_button("🚫 Deactivate User", use_container_width=True)
-                    
-                    if save:
-                        st.success(f"✅ User '{edit_username}' updated successfully!")
-                        rbac.log_activity(user['id'], 'user_updated', f"Updated user: {edit_username}")
-                    
-                    if deactivate:
-                        st.warning(f"⚠️ User '{edit_username}' has been deactivated")
-                        rbac.log_activity(user['id'], 'user_deactivated', f"Deactivated user: {edit_username}")
-                
-                # User activity history
-                st.markdown("---")
-                st.markdown("#### 📜 Recent Activity")
-                
-                # Get user's recent activity (mock data for now)
-                activity_data = {
-                    'Time': ['2024-01-20 10:30', '2024-01-20 09:15', '2024-01-19 16:45'],
-                    'Action': ['login', 'page_view', 'ai_query'],
-                    'Details': ['Successful login', 'Viewed Dashboard', 'Asked about crime patterns']
-                }
-                activity_df = pd.DataFrame(activity_data)
-                st.dataframe(activity_df, use_container_width=True)
-        else:
-            st.info("No users available to edit")
-    
-    # Tab 4: User Statistics
-    with tab4:
-        st.markdown("### 📊 User Statistics & Analytics")
-        
-        users = rbac.get_all_users()
-        if users:
-            # Role distribution
-            col1, col2 = st.columns(2)
-            
-            with col1:
-                st.markdown("#### Role Distribution")
-                role_counts = pd.DataFrame(users)['role'].value_counts()
-                
-                fig = px.pie(
-                    values=role_counts.values,
-                    names=[r.replace('_', ' ').title() for r in role_counts.index],
-                    hole=0.4,
-                    color_discrete_sequence=['#667eea', '#764ba2', '#f59e0b', '#10b981']
-                )
-                
-                fig.update_layout(
-                    plot_bgcolor='rgba(0,0,0,0)',
-                    paper_bgcolor='rgba(0,0,0,0)',
-                    font=dict(color='#e2e8f0'),
-                    height=350
-                )
-                
-                st.plotly_chart(fig, use_container_width=True)
-            
-            with col2:
-                st.markdown("#### Department Distribution")
-                dept_counts = pd.DataFrame(users)['department'].value_counts().head(10)
-                
-                fig = px.bar(
-                    x=dept_counts.values,
-                    y=dept_counts.index,
-                    orientation='h',
-                    color=dept_counts.values,
-                    color_continuous_scale='Viridis'
-                )
-                
-                fig.update_layout(
-                    plot_bgcolor='rgba(0,0,0,0)',
-                    paper_bgcolor='rgba(0,0,0,0)',
-                    font=dict(color='#e2e8f0'),
-                    xaxis_title="Number of Users",
-                    yaxis_title="Department",
-                    showlegend=False,
-                    height=350
-                )
-                
-                st.plotly_chart(fig, use_container_width=True)
-            
-            # Activity metrics
-            st.markdown("---")
-            st.markdown("#### Activity Metrics")
-            
-            col1, col2, col3, col4 = st.columns(4)
-            
-            with col1:
-                # Calculate login rate (mock data)
-                st.metric("Daily Active Users", "12", delta="↑ 3 from yesterday")
-            
-            with col2:
-                st.metric("Avg. Sessions/Day", "45", delta="↑ 5%")
-            
-            with col3:
-                st.metric("Most Active Role", "Detective")
-            
-            with col4:
-                st.metric("Inactive Users", "2", delta_color="inverse")
-            
-            # User growth chart (mock data)
-            st.markdown("---")
-            st.markdown("#### User Growth Over Time")
-            
-            # Generate mock growth data
-            dates = pd.date_range(start='2024-01-01', end='2024-01-20', freq='D')
-            user_growth = pd.DataFrame({
-                'Date': dates,
-                'Total Users': [10 + i * 2 + (i % 3) for i in range(len(dates))],
-                'Active Users': [8 + i * 1.5 + (i % 2) for i in range(len(dates))]
-            })
-            
-            fig = go.Figure()
-            
-            fig.add_trace(go.Scatter(
-                x=user_growth['Date'],
-                y=user_growth['Total Users'],
-                mode='lines+markers',
-                name='Total Users',
-                line=dict(color='#667eea', width=3),
-                marker=dict(size=8)
-            ))
-            
-            fig.add_trace(go.Scatter(
-                x=user_growth['Date'],
-                y=user_growth['Active Users'],
-                mode='lines+markers',
-                name='Active Users',
-                line=dict(color='#10b981', width=3),
-                marker=dict(size=8)
-            ))
-            
-            fig.update_layout(
-                plot_bgcolor='rgba(0,0,0,0)',
-                paper_bgcolor='rgba(0,0,0,0)',
-                font=dict(color='#e2e8f0'),
-                xaxis_title="Date",
-                yaxis_title="Number of Users",
-                legend=dict(orientation='h', y=1.1),
-                height=400
-            )
-            
-            st.plotly_chart(fig, use_container_width=True)
-        else:
-            st.info("No user data available for statistics")
-    
-    # Quick Actions Section
+# ---------------------------
+# ABOUT page: detailed project report
+# ---------------------------
+elif current_page == 'About':
+    st.markdown("## ℹ️Project Overvirew")
     st.markdown("---")
-    st.markdown("### ⚡ Quick Actions")
-    
-    col1, col2, col3, col4 = st.columns(4)
-    
-    with col1:
-        if st.button("🔄 Sync with AD", use_container_width=True):
-            st.info("Active Directory sync would happen here")
-    
-    with col2:
-        if st.button("📧 Email All Users", use_container_width=True):
-            st.info("Bulk email functionality")
-    
-    with col3:
-        if st.button("🔒 Force Password Reset", use_container_width=True):
-            st.warning("This would force all users to reset passwords")
-    
-    with col4:
-        if st.button("📊 Generate Report", use_container_width=True):
-            st.info("User report generation")
 
-# --------------------------------------------------------------------
-# ACTIVITY LOGS PAGE (ADMIN ONLY)
-# --------------------------------------------------------------------
+    # INTRO & GOALS
+    st.markdown("### 1. Project Introduction")
+    st.markdown("""
+CrimeGraphRAG is a prototype investigative platform that pairs a Neo4j knowledge graph with Retrieval-Augmented Generation driven by large language models (GraphRAG).
+It allows investigators and analysts to ask natural-language questions and receive verifiable, contextual insights grounded in the graph (Cypher) results.
+The system focuses on explainability, multi-hop relational reasoning, and interactive visualization.
+    """, unsafe_allow_html=True)
 
-elif current_page == "Activity Logs":
-    if user_role != Role.ADMIN.value:
-        st.error("🚫 Admin access required")
-        st.stop()
-    
-    st.markdown("## 📋 Activity Logs")
-    st.markdown("System activity monitoring and audit trail")
-    
-    # Filters Section
-    st.markdown("### 🔍 Filters")
-    col1, col2, col3, col4 = st.columns(4)
-    
-    with col1:
-        time_range = st.selectbox(
-            "Time Range",
-            ["Last Hour", "Last 24 Hours", "Last 7 Days", "Last 30 Days", "All Time"],
-            index=1
-        )
-    
-    with col2:
-        all_users = rbac.get_all_users()
-        user_options = ["All Users"] + [u['username'] for u in all_users]
-        selected_user = st.selectbox("User", user_options)
-    
-    with col3:
-        action_types = [
-            "All Actions", "login", "logout", "page_view", 
-            "ai_query", "algorithm_run", "network_view", 
-            "map_view", "admin_action", "user_created", "error"
-        ]
-        selected_action = st.selectbox("Action Type", action_types)
-    
-    with col4:
-        st.markdown("<br>", unsafe_allow_html=True)
-        if st.button("🔄 Refresh", use_container_width=True):
-            st.rerun()
-    
-    st.markdown("---")
-    
-    # Get logs
-    limit = 500 if time_range == "All Time" else 100
-    logs = rbac.get_activity_logs(limit=limit)
-    
-    if logs:
-        from datetime import datetime, timedelta
-        import pytz
-        import pandas as pd
-        import plotly.express as px
+    st.markdown("### 2. Project Goals")
+    st.markdown("""
+- Model real-world crime data in a graph to surface hidden relationships (repeat offenders, cross-case links, hotspots).  
+- Let users query the graph using natural language via a GraphRAG pipeline (LLM + Cypher grounding).  
+- Provide an interactive Streamlit dashboard for visualization (network, geography, timeline, analytics).  
+- Produce auditable answers by showing generated Cypher queries + raw subgraph context.  
+    """, unsafe_allow_html=True)
 
-        df = pd.DataFrame(logs)
+    # ARCHITECTURE
+    st.markdown("### 3. Architecture (High-level)")
+    st.markdown("""
+**Layers & Flow**
+1. **Data Ingestion** — Chicago Crime API / CSV ingestion -> ETL -> Neo4j import.  
+2. **Graph Database** — Neo4j holds entities and relationships (Person, Crime, Location, Officer, Evidence, Area).  
+3. **GraphRAG Module** — LLM interprets the user query, constructs Cypher retrieval queries, Neo4j returns subgraph, system encodes subgraph -> LLM generates final explanation.  
+4. **Backend** — Python service that orchestrates Neo4j driver, GraphRAG logic, and API endpoints (if any).  
+5. **Frontend** — Streamlit UI (this app) with modular pages: Dashboard, AI Assistant, Network Viz, Geographic Mapping, Timeline, Graph Schema, Graph Algorithms, About.
+    """, unsafe_allow_html=True)
 
-        # --- Timezone handling: assume stored timestamps are UTC ---
-        # Parse to datetime
-        df['timestamp'] = pd.to_datetime(df['timestamp'], errors='coerce')
+    # FEATURES
+    st.markdown("### 4. Features (as implemented / in-app)")
+    st.markdown("""
+- **Conversational AI Assistant** — Multi-turn, context-preserving query interface that shows the Cypher queries used.  
+- **Graph Schema Visualizer** — Inspect node labels, properties, and relationships.  
+- **Network Visualization** — Interactive network (PyVis/NetworkX integration via `network_viz`).  
+- **Geographic Mapping** — Plot crimes on maps (latitude/longitude clustering, hotspots).  
+- **Timeline Analysis** — Temporal views of incidents and trends.  
+- **Graph Algorithms Suite** — Run centrality, community detection, shortest paths (accessible under Graph Algorithms).  
+- **Metrics & Health** — Sidebar system status and node/relationship counts.  
+- **Auditable Answers** — Expand to view generated Cypher + raw results used to form the LLM answer.
+    """, unsafe_allow_html=True)
 
-        # Localize/convert to UTC if needed
-        utc_zone = pytz.UTC
-        est_zone = pytz.timezone('America/New_York')
+    # DATA SOURCES
+    st.markdown("### 5. Data Sources")
+    st.markdown("""
+CrimeGraphRAG uses a **hybrid dataset** combining real-world public data and controlled synthetic entities to enable realistic crime-investigation analysis without exposing sensitive information.
 
-        if df['timestamp'].dt.tz is None:
-            # Naive -> localize as UTC
-            df['timestamp'] = df['timestamp'].dt.tz_localize(utc_zone)
-        else:
-            # Already tz-aware -> convert to UTC
-            df['timestamp'] = df['timestamp'].dt.tz_convert(utc_zone)
+#### **🔹 Primary Dataset (Real Data)**
+- **City of Chicago Crime Dataset (2001–Present)**
+- Public API Endpoint:  
+  `https://data.cityofchicago.org/resource/ijzp-q8t2.json`
+- Provides crime types, dates, locations, arrest info, community areas, and coordinates.
 
-        # Convert to EST
-        df['timestamp_est'] = df['timestamp'].dt.tz_convert(est_zone)
+#### **🔹 Secondary Dataset (Custom / Synthetic Data)**
+To model suspects, officers, evidence, gangs, and relationships *not available* in public datasets, customized synthetic data was generated:
+- **Officers and Investigators**
+- **Suspects / Persons of Interest**
+- **Organizations & Gang Structures**
+- **Evidence Metadata**
+- **Inter-person relationships** (KNOWS, FAMILY_REL, ASSOCIATED_WITH)
+- **Crime linkage patterns**
 
-        # Drop rows where timestamp conversion failed
-        df = df.dropna(subset=['timestamp_est'])
-
-        # --- Time range filter based on EST ---
-        now_est = datetime.now(est_zone)
-
-        if time_range != "All Time":
-            if time_range == "Last Hour":
-                start_time = now_est - timedelta(hours=1)
-            elif time_range == "Last 24 Hours":
-                start_time = now_est - timedelta(hours=24)
-            elif time_range == "Last 7 Days":
-                start_time = now_est - timedelta(days=7)
-            elif time_range == "Last 30 Days":
-                start_time = now_est - timedelta(days=30)
-            else:
-                start_time = None
-
-            if start_time is not None:
-                df = df[df['timestamp_est'] >= start_time]
-
-        # Info about timezone
-        st.info("🕐 All times displayed in EST (Eastern Standard Time) | Your local timezone")
-        
-        # Apply user filter
-        if selected_user != "All Users":
-            df = df[df['username'] == selected_user]
-        
-        # Apply action filter
-        if selected_action != "All Actions":
-            df = df[df['action'] == selected_action]
-        
-        if not df.empty:
-            # Statistics
-            st.markdown("### 📊 Activity Statistics")
-            
-            col1, col2, col3, col4 = st.columns(4)
-            
-            with col1:
-                st.metric("Total Activities", f"{len(df):,}")
-            
-            with col2:
-                st.metric("Active Users", df['username'].nunique())
-            
-            with col3:
-                login_count = len(df[df['action'] == 'login'])
-                st.metric("Logins", login_count)
-            
-            with col4:
-                error_count = len(
-                    df['action'].str.contains('error|fail|denied', case=False, na=False)
-                )
-                st.metric("Errors", error_count, delta_color="inverse")
-            
-            st.markdown("---")
-            
-            # Visualizations
-            st.markdown("### 📈 Activity Visualizations")
-            
-            col1, col2 = st.columns(2)
-            
-            with col1:
-                st.markdown("#### Activity Timeline")
-                
-                # Group by hour (using EST datetime)
-                df['hour'] = df['timestamp_est'].dt.floor('H')
-                timeline_data = df.groupby('hour').size().reset_index(name='count')
-                
-                if not timeline_data.empty:
-                    fig = px.line(
-                        timeline_data,
-                        x='hour',
-                        y='count',
-                        markers=True
-                    )
-                    
-                    fig.update_layout(
-                        plot_bgcolor='rgba(0,0,0,0)',
-                        paper_bgcolor='rgba(0,0,0,0)',
-                        font=dict(color='#e2e8f0'),
-                        xaxis_title="Time (EST)",
-                        yaxis_title="Activities",
-                        height=350
-                    )
-                    
-                    st.plotly_chart(fig, use_container_width=True)
-            
-            with col2:
-                st.markdown("#### Top Active Users")
-                
-                user_activity = df['username'].value_counts().head(10)
-                
-                if not user_activity.empty:
-                    fig = px.bar(
-                        x=user_activity.values,
-                        y=user_activity.index,
-                        orientation='h'
-                    )
-                    
-                    fig.update_layout(
-                        plot_bgcolor='rgba(0,0,0,0)',
-                        paper_bgcolor='rgba(0,0,0,0)',
-                        font=dict(color='#e2e8f0'),
-                        xaxis_title="Number of Activities",
-                        yaxis_title="User",
-                        height=350
-                    )
-                    
-                    st.plotly_chart(fig, use_container_width=True)
-            
-            # Action Distribution
-            col1, col2 = st.columns(2)
-            
-            with col1:
-                st.markdown("#### Action Distribution")
-                
-                action_counts = df['action'].value_counts()
-                
-                if not action_counts.empty:
-                    fig = px.pie(
-                        values=action_counts.values,
-                        names=action_counts.index,
-                        hole=0.4
-                    )
-                    
-                    fig.update_layout(
-                        plot_bgcolor='rgba(0,0,0,0)',
-                        paper_bgcolor='rgba(0,0,0,0)',
-                        font=dict(color='#e2e8f0'),
-                        height=350
-                    )
-                    
-                    st.plotly_chart(fig, use_container_width=True)
-            
-            with col2:
-                st.markdown("#### Recent Errors/Warnings")
-                
-                important_events = df[
-                    df['action'].str.contains(
-                        'error|fail|denied|unauthorized', 
-                        case=False, na=False
-                    )
-                ].sort_values('timestamp_est', ascending=False).head(5)
-                
-                if not important_events.empty:
-                    for _, event in important_events.iterrows():
-                        ts_str = event['timestamp_est'].strftime('%Y-%m-%d %H:%M:%S EST')
-                        st.markdown(f"""
-                        <div style='background: rgba(239, 68, 68, 0.15); 
-                                    padding: 10px; 
-                                    border-radius: 8px; 
-                                    margin: 5px 0;
-                                    border-left: 3px solid #ef4444;'>
-                            <strong>{event['username']}</strong> - {event['action']}<br>
-                            <small style='color: #94a3b8;'>
-                                {ts_str}
-                            </small>
-                        </div>
-                        """, unsafe_allow_html=True)
-                else:
-                    st.success("✅ No recent errors or warnings")
-            
-            st.markdown("---")
-            
-            # Detailed Logs Table
-            st.markdown("### 📝 Detailed Activity Logs")
-            
-            # Search box
-            search_term = st.text_input("🔍 Search in logs", placeholder="Type to search...")
-            
-            # Prepare display (use EST, formatted as string)
-            display_df = df[['timestamp_est', 'username', 'action', 'details']].copy()
-            display_df['Timestamp'] = display_df['timestamp_est'].dt.strftime('%Y-%m-%d %H:%M:%S EST')
-            display_df = display_df[['Timestamp', 'username', 'action', 'details']]
-            display_df.columns = ['Timestamp', 'User', 'Action', 'Details']
-            
-            # Apply search filter
-            if search_term:
-                mask = display_df.apply(
-                    lambda row: row.astype(str).str.contains(search_term, case=False).any(),
-                    axis=1
-                )
-                display_df = display_df[mask]
-            
-            # Color coding function
-            def color_action(row):
-                action = row['Action'].lower()
-                if 'login' in action:
-                    return ['background-color: rgba(16, 185, 129, 0.2)'] * len(row)
-                elif 'logout' in action:
-                    return ['background-color: rgba(59, 130, 246, 0.2)'] * len(row)
-                elif 'error' in action or 'fail' in action:
-                    return ['background-color: rgba(239, 68, 68, 0.2)'] * len(row)
-                elif 'admin' in action:
-                    return ['background-color: rgba(245, 158, 11, 0.2)'] * len(row)
-                elif 'ai_query' in action:
-                    return ['background-color: rgba(102, 126, 234, 0.2)'] * len(row)
-                else:
-                    return [''] * len(row)
-            
-            styled_df = display_df.style.apply(color_action, axis=1)
-            st.dataframe(styled_df, use_container_width=True, height=400)
-            
-            # Export section
-            st.markdown("---")
-            col1, col2, col3 = st.columns([2, 1, 1])
-            
-            with col1:
-                st.info(f"📊 Showing {len(display_df)} activities")
-            
-            with col2:
-                csv = display_df.to_csv(index=False)
-                st.download_button(
-                    label="📥 Export as CSV",
-                    data=csv,
-                    file_name=f"activity_logs_{datetime.now().strftime('%Y%m%d_%H%M%S')}.csv",
-                    mime="text/csv",
-                    use_container_width=True
-                )
-            
-            with col3:
-                if st.button("🗑️ Clear Old Logs", use_container_width=True, type="secondary"):
-                    st.warning("⚠️ This would clear logs older than 30 days (not implemented in demo)")
-        
-        else:
-            st.info("No activities found matching the selected filters")
-    
-    else:
-        st.info("No activity logs available yet. Logs will appear as users interact with the system.")
-    
-    # Activity Legend
-    with st.expander("📖 Activity Types Legend", expanded=False):
-        st.markdown("""
-        **Action Types:**
-        - 🟢 **login/logout** - User authentication events
-        - 🔵 **page_view** - Page navigation events  
-        - 🟣 **ai_query** - AI Assistant interactions
-        - 🟠 **admin_action** - Administrative actions
-        - 🔴 **error/denied** - Errors and access denials
-        - ⚪ **other** - Other system events
-        
-        **Color Coding:**
-        - Green background: Login events
-        - Blue background: Logout events
-        - Red background: Errors or failures
-        - Orange background: Admin actions
-        - Purple background: AI queries
-        """)
+This hybrid approach ensures:
+- Realistic patterns from actual Chicago crime incidents  
+- Complete graph structures for relationship reasoning  
+- No exposure of private or sensitive identities  
+"""
+, unsafe_allow_html=True)
 
 
+    # GRAPH DESIGN
+    st.markdown("### 6. Graph Design (summary)")
+    st.markdown("""
+**Nodes (examples):** `Crime`, `Person`, `Officer`, `Location`, `Area`, `Evidence`, `Organization`  
+**Typical properties:** `Crime.id`, `Crime.type`, `Crime.date`, `Location.lat`, `Location.lon`, `Person.name`, `Officer.badge_no`  
+**Relationships (examples):**  
+- `(:Crime)-[:OCCURRED_AT]->(:Location)`  
+- `(:Crime)-[:INVESTIGATED_BY]->(:Officer)`  
+- `(:Person)-[:PARTY_TO]->(:Crime)`  
+- `(:Person)-[:KNOWS|FAMILY_REL]->(:Person)`  
+- `(:Location)-[:PART_OF]->(:Area)`
+    """, unsafe_allow_html=True)
+
+    # METHODOLOGY / GRAGRAG PIPELINE
+    st.markdown("### 7. GraphRAG Methodology (pipeline)")
+    st.markdown("""
+1. **Query Understanding:** LLM parses user query and identifies intent and entities.  
+2. **Subgraph Retrieval:** System builds parameterized Cypher queries (possibly multiple) and fetches a compact subgraph.  
+3. **Graph-to-Text Encoding:** Convert nodes/edges into structured textual context (e.g., "Person A -> MEMBER_OF -> Org X; Person A -> PARTY_TO -> Crime #123 on 2024-05-12").  
+4. **LLM Reasoning (RAG):** Pass the structured context to the LLM to synthesize a human-readable explanation and recommended next steps.  
+5. **Visualization:** Show the returned subgraph visually and provide the executed Cypher queries for transparency.
+    """, unsafe_allow_html=True)
+
+    # EXAMPLE QUERIES
+    st.markdown("### 8. Example User Queries")
+    st.markdown("""
+- “Who are the suspects connected to ongoing drug investigations near downtown Chicago?”  
+- “Which officers have investigated the most burglary cases in 2024?”  
+- “Summarize relationships among repeat offenders in assault cases.”  
+- “Find the top 5 crime hotspots by community area and type.”
+    """, unsafe_allow_html=True)
+
+    # OUTCOMES
+    st.markdown("### 9. Expected Outcomes")
+    st.markdown("""
+- A functional GraphRAG-based Crime Knowledge Graph prototype.  
+- Natural-language query interface powered by OpenRouter-hosted LLM.  
+- Interactive visualizations (network maps, geospatial hotspots, timelines).  
+- Auditable and verifiable answers showing Cypher and raw subgraph data.  
+- A modular codebase suitable for extension to fraud, cybersecurity, or insurance networks.
+    """, unsafe_allow_html=True)
+
+    # FUTURE ENHANCEMENTS
+    st.markdown("### 10. Future Enhancements")
+    st.markdown("""
+- **RBAC & Authentication** — Enforce role-based access (Detective, Analyst, Supervisor) before showing sensitive data.  
+- **Graph Embeddings (Neo4j GDS)** — Combine vector similarity with graph retrieval for hybrid RAG.  
+- **Temporal Graphs & Causal Analysis** — Add OCCURRED_AFTER edges and causal inference layers.  
+- **Real-time Ingestion** — Stream new incidents into the graph for near real-time analytics.  
+- **Explainability Modules** — Step-by-step LLM reasoning trace and provenance.
+    """, unsafe_allow_html=True)
+
+    # TECH STACK & TOOLS
+    st.markdown("### 11. Tools & Tech Stack")
+    st.markdown("""
+- **Database:** Neo4j (Aura or self-managed).  
+- **Backend:** Python (Neo4j Driver, Requests, ETL scripts).  
+- **LLM API:** OpenRouter (LLaMA-3 / Mistral recommended).  
+- **Frontend:** Streamlit (this application).  
+- **Visualization:** NetworkX, PyVis, Plotly, Mapbox/Leaflet (for geo).  
+- **Data Sources:** City of Chicago Crime API, FBI APIs, synthetic data.  
+- **Deployment:** Containerized services (.env for secrets), optional Cloud or Neo4j Aura.
+    """, unsafe_allow_html=True)
 
 
+    # CONTACT / ACKNOWLEDGEMENT
+    st.markdown("### 12. Contact & Acknowledgements")
+    st.markdown("""
+**Project:** CrimeGraphRAG — Course: DAMG 7374 - Knowledge Graphs with GenAI (Northeastern University)  
+**Authors / Team:** Yashasvi Nagar, Nancy Taswala, Manish Kumar Kondoju  
+**Acknowledgement:** This prototype demonstrates architectural concepts for educational purposes and is not for operational policing without appropriate approvals, privacy safeguards, and legal review.
+    """, unsafe_allow_html=True)
 
-# --------------------------------------------------------------------
-# FOOTER
-# --------------------------------------------------------------------
+# Default / fallback: set dashboard
+else:
+    st.session_state.page = 'Dashboard'
+    st.rerun()
 
+# Enhanced Footer
 st.markdown("---")
-st.markdown(
-    f"""
-<div style='text-align: center; color: #64748b; padding: 1.5rem;'>
-    <p style='font-size: 1.1rem; margin-bottom: 8px;'>🕵️ <strong>CrimeGraphRAG</strong> - RBAC Enabled</p>
-    <p style='font-size: 0.9rem; color: #94a3b8;'>User: {user['username']} • Role: {user['role'].replace('_', ' ').title()}</p>
+st.markdown("""
+<div style='text-align: center; padding: 2rem; background: rgba(255, 255, 255, 0.02); border-radius: 16px; margin-top: 40px;'>
+    <h3 style='font-size: 1.3rem; margin-bottom: 12px; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); -webkit-background-clip: text; -webkit-text-fill-color: transparent;'>
+        🕵️ CrimeGraphRAG Intelligence System
+    </h3>
+    <p style='color: #a0aec0; font-size: 0.95rem; margin: 8px 0;'>
+        Neo4j Knowledge Graphs • OpenRouter AI • Real Chicago Crime Data
+    </p>
+    <p style='color: #718096; font-size: 0.85rem; margin-top: 12px;'>
+        DAMG 7374 - Knowledge Graphs with GenAI | Northeastern University
+    </p>
+    <div style='margin-top: 16px; display: flex; justify-content: center; gap: 16px;'>
+        <span class='status-badge status-online'>Production Ready</span>
+    </div>
 </div>
-""",
-    unsafe_allow_html=True,
-)
+""", unsafe_allow_html=True)
