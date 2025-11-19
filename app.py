@@ -1,9 +1,10 @@
-# app.py - Crime Investigation System
+# app.py - Crime Investigation System with Geographic Mapping
 import streamlit as st
 from database import Database
 from network_viz import NetworkVisualization
 from graph_rag import GraphRAG
 from graph_algorithms import render_graph_algorithms_page
+from geo_mapping import render_geographic_page
 import plotly.express as px
 import plotly.graph_objects as go
 from datetime import datetime
@@ -14,7 +15,7 @@ st.set_page_config(
     page_title="CrimeGraphRAG",
     page_icon="🕵️",
     layout="wide",
-    initial_sidebar_state="expanded"  # Keep sidebar open
+    initial_sidebar_state="expanded"
 )
 
 # Professional CSS
@@ -138,6 +139,10 @@ with st.sidebar:
         st.session_state.page = 'Network Visualization'
         st.rerun()
     
+    if st.button("🗺️ Geographic Mapping", use_container_width=True, type="primary" if st.session_state.get('page') == 'Geographic Mapping' else "secondary"):
+        st.session_state.page = 'Geographic Mapping'
+        st.rerun()
+    
     st.markdown("---")
     
     st.markdown("### 📊 System Status")
@@ -251,7 +256,6 @@ if current_page == 'Dashboard':
             """, unsafe_allow_html=True)
     
     with col3:
-        # Network connectivity - who has most connections
         connected = db.query("""
             MATCH (p:Person)-[:KNOWS]-(other:Person)
             WITH p, count(DISTINCT other) as connections
@@ -913,6 +917,12 @@ elif current_page == 'Network Visualization':
     st.markdown("Interactive graph visualization of criminal connections")
     st.markdown("---")
     network_viz.render()
+
+# ========================================
+# PAGE: GEOGRAPHIC MAPPING
+# ========================================
+elif current_page == 'Geographic Mapping':
+    render_geographic_page(db)
 
 # ========================================
 # DEFAULT PAGE
