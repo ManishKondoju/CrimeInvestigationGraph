@@ -219,7 +219,7 @@ OPENAI_API_KEY=your_openrouter_api_key_here
 
 ```bash
 # Run the data loader script
-python load_data.py
+python load_hybrid_data.py
 ```
 
 **Expected output:**
