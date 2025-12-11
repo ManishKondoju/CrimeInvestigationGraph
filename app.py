@@ -1,10 +1,13 @@
-# app.py - Crime Investigation System with Geographic Mapping
+# app.py - Crime Investigation System with ENHANCED MODERN UI
 import streamlit as st
 from database import Database
 from network_viz import NetworkVisualization
 from graph_rag import GraphRAG
 from graph_algorithms import render_graph_algorithms_page
 from geo_mapping import render_geographic_page
+from timeline_viz import render_timeline_interface
+from enhanced_dashboard import render_enhanced_dashboard
+from schema_visualizer import render_schema_page  # NEW: Schema visualization
 import plotly.express as px
 import plotly.graph_objects as go
 from datetime import datetime
@@ -18,80 +21,449 @@ st.set_page_config(
     initial_sidebar_state="expanded"
 )
 
-# Professional CSS
+# ENHANCED MODERN CSS
 st.markdown("""
 <style>
-    @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap');
+    @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap');
     
-    * { font-family: 'Inter', sans-serif; }
-    
-    .main { 
-        background: linear-gradient(135deg, #0f1419 0%, #1a1f3a 50%, #0a0e27 100%);
+    /* Global Styles */
+    * {
+        font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
     }
     
+    /* Main Background with Animated Gradient */
+    .main {
+        background: linear-gradient(-45deg, #0a0e27, #1a1f3a, #2d1b4e, #1e2a47);
+        background-size: 400% 400%;
+        animation: gradientShift 15s ease infinite;
+    }
+    
+    @keyframes gradientShift {
+        0% { background-position: 0% 50%; }
+        50% { background-position: 100% 50%; }
+        100% { background-position: 0% 50%; }
+    }
+    
+    /* Glassmorphism Cards */
+    .glass-card {
+        background: rgba(255, 255, 255, 0.05);
+        backdrop-filter: blur(10px);
+        border-radius: 16px;
+        border: 1px solid rgba(255, 255, 255, 0.1);
+        padding: 24px;
+        box-shadow: 0 8px 32px 0 rgba(31, 38, 135, 0.37);
+        transition: all 0.3s ease;
+    }
+    
+    .glass-card:hover {
+        background: rgba(255, 255, 255, 0.08);
+        transform: translateY(-2px);
+        box-shadow: 0 12px 48px 0 rgba(31, 38, 135, 0.5);
+    }
+    
+    /* Modern Buttons */
     .stButton>button {
         background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
         color: white;
-        border-radius: 10px;
-        padding: 0.6rem 1.5rem;
-        font-weight: 600;
-        transition: all 0.3s ease;
-        border: none;
-    }
-    
-    .stButton>button:hover { 
-        transform: translateY(-2px);
-        box-shadow: 0 5px 15px rgba(102, 126, 234, 0.4);
-    }
-    
-    h1, h2, h3 { color: #ffffff; }
-    
-    [data-testid="stMetricValue"] {
-        font-size: 1.8rem;
-        font-weight: 700;
-        color: #667eea;
-    }
-    
-    .alert-box {
-        padding: 20px;
         border-radius: 12px;
-        margin: 15px 0;
-        border-left: 4px solid;
+        padding: 0.75rem 2rem;
+        font-weight: 600;
+        font-size: 0.95rem;
+        border: none;
+        box-shadow: 0 4px 15px 0 rgba(102, 126, 234, 0.4);
+        transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+        position: relative;
+        overflow: hidden;
+    }
+    
+    .stButton>button:before {
+        content: '';
+        position: absolute;
+        top: 0;
+        left: -100%;
+        width: 100%;
+        height: 100%;
+        background: linear-gradient(90deg, transparent, rgba(255,255,255,0.2), transparent);
+        transition: left 0.5s;
+    }
+    
+    .stButton>button:hover:before {
+        left: 100%;
+    }
+    
+    .stButton>button:hover {
+        transform: translateY(-3px);
+        box-shadow: 0 8px 25px 0 rgba(102, 126, 234, 0.6);
+    }
+    
+    .stButton>button:active {
+        transform: translateY(-1px);
+    }
+    
+    /* Enhanced Metrics */
+    [data-testid="stMetricValue"] {
+        font-size: 2.2rem;
+        font-weight: 800;
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        -webkit-background-clip: text;
+        -webkit-text-fill-color: transparent;
+        background-clip: text;
+    }
+    
+    [data-testid="stMetricLabel"] {
+        font-size: 0.9rem;
+        font-weight: 600;
+        color: #a0aec0;
+        text-transform: uppercase;
+        letter-spacing: 0.05em;
+    }
+    
+    [data-testid="stMetricDelta"] {
+        font-size: 0.85rem;
+        font-weight: 500;
+    }
+    
+    /* Modern Alert Boxes */
+    .alert-box {
+        padding: 24px;
+        border-radius: 16px;
+        margin: 20px 0;
+        backdrop-filter: blur(10px);
+        border: 1px solid rgba(255, 255, 255, 0.1);
+        position: relative;
+        overflow: hidden;
+        transition: all 0.3s ease;
+    }
+    
+    .alert-box:before {
+        content: '';
+        position: absolute;
+        left: 0;
+        top: 0;
+        height: 100%;
+        width: 4px;
+        transition: width 0.3s ease;
+    }
+    
+    .alert-box:hover:before {
+        width: 8px;
     }
     
     .alert-critical {
-        background: rgba(239, 68, 68, 0.15);
-        border-color: #ef4444;
+        background: rgba(239, 68, 68, 0.1);
+        border-left: 4px solid #ef4444;
+    }
+    
+    .alert-critical:before {
+        background: #ef4444;
     }
     
     .alert-warning {
-        background: rgba(245, 158, 11, 0.15);
-        border-color: #f59e0b;
+        background: rgba(245, 158, 11, 0.1);
+        border-left: 4px solid #f59e0b;
+    }
+    
+    .alert-warning:before {
+        background: #f59e0b;
     }
     
     .alert-info {
-        background: rgba(59, 130, 246, 0.15);
-        border-color: #3b82f6;
+        background: rgba(59, 130, 246, 0.1);
+        border-left: 4px solid #3b82f6;
     }
     
+    .alert-info:before {
+        background: #3b82f6;
+    }
+    
+    /* Section Titles with Glow */
     .section-title {
-        color: #667eea;
-        font-size: 1.5rem;
+        color: #ffffff;
+        font-size: 1.6rem;
         font-weight: 700;
-        margin: 30px 0 20px 0;
-        padding-bottom: 10px;
-        border-bottom: 2px solid rgba(102, 126, 234, 0.3);
+        margin: 40px 0 24px 0;
+        padding-bottom: 12px;
+        border-bottom: 2px solid transparent;
+        background: linear-gradient(90deg, rgba(102, 126, 234, 0.5) 0%, transparent 100%);
+        background-position: 0 100%;
+        background-repeat: no-repeat;
+        background-size: 100% 2px;
+        position: relative;
     }
     
-    /* Sidebar styling */
+    .section-title:after {
+        content: '';
+        position: absolute;
+        bottom: -2px;
+        left: 0;
+        width: 60px;
+        height: 2px;
+        background: linear-gradient(90deg, #667eea, #764ba2);
+        box-shadow: 0 0 10px rgba(102, 126, 234, 0.5);
+    }
+    
+    /* Modern Sidebar */
     [data-testid="stSidebar"] {
-        background: linear-gradient(180deg, rgba(10, 14, 39, 0.95) 0%, rgba(26, 31, 58, 0.95) 100%);
+        background: linear-gradient(180deg, rgba(10, 14, 39, 0.98) 0%, rgba(26, 31, 58, 0.98) 100%);
         backdrop-filter: blur(20px);
-        border-right: 1px solid rgba(255, 255, 255, 0.1);
+        border-right: 1px solid rgba(102, 126, 234, 0.2);
     }
     
     [data-testid="stSidebar"] [data-testid="stMarkdownContainer"] {
         color: #e2e8f0;
+    }
+    
+    /* Sidebar Buttons */
+    [data-testid="stSidebar"] .stButton>button {
+        width: 100%;
+        text-align: left;
+        justify-content: flex-start;
+        padding: 0.85rem 1.2rem;
+        font-size: 0.95rem;
+        margin: 4px 0;
+        background: rgba(255, 255, 255, 0.05);
+        border: 1px solid rgba(255, 255, 255, 0.1);
+    }
+    
+    [data-testid="stSidebar"] .stButton>button:hover {
+        background: rgba(102, 126, 234, 0.2);
+        border-color: rgba(102, 126, 234, 0.4);
+        transform: translateX(4px);
+    }
+    
+    /* Headers */
+    h1, h2, h3 {
+        color: #ffffff;
+        font-weight: 700;
+    }
+    
+    h1 {
+        font-size: 2.5rem;
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 50%, #f093fb 100%);
+        -webkit-background-clip: text;
+        -webkit-text-fill-color: transparent;
+        background-clip: text;
+        margin-bottom: 0.5rem;
+    }
+    
+    /* Data Tables */
+    [data-testid="stDataFrame"] {
+        background: rgba(255, 255, 255, 0.03);
+        border-radius: 12px;
+        border: 1px solid rgba(255, 255, 255, 0.1);
+        overflow: hidden;
+    }
+    
+    /* Tabs */
+    .stTabs [data-baseweb="tab-list"] {
+        gap: 8px;
+        background: rgba(255, 255, 255, 0.03);
+        padding: 8px;
+        border-radius: 12px;
+    }
+    
+    .stTabs [data-baseweb="tab"] {
+        background: transparent;
+        border-radius: 8px;
+        color: #a0aec0;
+        font-weight: 600;
+        padding: 12px 24px;
+        transition: all 0.3s ease;
+    }
+    
+    .stTabs [data-baseweb="tab"]:hover {
+        background: rgba(102, 126, 234, 0.1);
+        color: #667eea;
+    }
+    
+    .stTabs [aria-selected="true"] {
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%) !important;
+        color: white !important;
+        box-shadow: 0 4px 12px rgba(102, 126, 234, 0.4);
+    }
+    
+    /* Expander */
+    .streamlit-expanderHeader {
+        background: rgba(255, 255, 255, 0.05);
+        border-radius: 12px;
+        border: 1px solid rgba(255, 255, 255, 0.1);
+        font-weight: 600;
+        color: #e2e8f0;
+    }
+    
+    .streamlit-expanderHeader:hover {
+        background: rgba(102, 126, 234, 0.1);
+        border-color: rgba(102, 126, 234, 0.3);
+    }
+    
+    /* Input Fields */
+    .stTextInput>div>div>input,
+    .stSelectbox>div>div>div,
+    .stMultiSelect>div>div>div {
+        background: rgba(255, 255, 255, 0.05);
+        border: 1px solid rgba(255, 255, 255, 0.1);
+        border-radius: 10px;
+        color: #e2e8f0;
+        transition: all 0.3s ease;
+    }
+    
+    .stTextInput>div>div>input:focus,
+    .stSelectbox>div>div>div:focus,
+    .stMultiSelect>div>div>div:focus {
+        border-color: #667eea;
+        box-shadow: 0 0 0 2px rgba(102, 126, 234, 0.2);
+        background: rgba(255, 255, 255, 0.08);
+    }
+    
+    /* Chat Messages */
+    .stChatMessage {
+        background: rgba(255, 255, 255, 0.05);
+        border-radius: 16px;
+        border: 1px solid rgba(255, 255, 255, 0.1);
+        padding: 16px;
+        margin: 8px 0;
+    }
+    
+    /* Success/Info/Warning/Error Messages */
+    .stSuccess, .stInfo, .stWarning, .stError {
+        background: rgba(255, 255, 255, 0.05);
+        backdrop-filter: blur(10px);
+        border-radius: 12px;
+        border-left-width: 4px;
+    }
+    
+    /* Spinner */
+    .stSpinner > div {
+        border-top-color: #667eea !important;
+    }
+    
+    /* Status Badge */
+    .status-badge {
+        display: inline-block;
+        padding: 6px 14px;
+        border-radius: 20px;
+        font-size: 0.85rem;
+        font-weight: 600;
+        backdrop-filter: blur(10px);
+        border: 1px solid rgba(255, 255, 255, 0.2);
+    }
+    
+    .status-online {
+        background: rgba(16, 185, 129, 0.2);
+        color: #10b981;
+        border-color: rgba(16, 185, 129, 0.5);
+        box-shadow: 0 0 10px rgba(16, 185, 129, 0.3);
+    }
+    
+    .status-offline {
+        background: rgba(239, 68, 68, 0.2);
+        color: #ef4444;
+        border-color: rgba(239, 68, 68, 0.5);
+    }
+    
+    /* Metric Cards */
+    .metric-card {
+        background: rgba(255, 255, 255, 0.05);
+        backdrop-filter: blur(10px);
+        border-radius: 16px;
+        border: 1px solid rgba(255, 255, 255, 0.1);
+        padding: 20px;
+        transition: all 0.3s ease;
+        position: relative;
+        overflow: hidden;
+    }
+    
+    .metric-card:before {
+        content: '';
+        position: absolute;
+        top: 0;
+        left: 0;
+        right: 0;
+        height: 3px;
+        background: linear-gradient(90deg, #667eea, #764ba2);
+        transform: scaleX(0);
+        transition: transform 0.3s ease;
+    }
+    
+    .metric-card:hover {
+        background: rgba(255, 255, 255, 0.08);
+        transform: translateY(-4px);
+        box-shadow: 0 12px 24px rgba(0, 0, 0, 0.3);
+    }
+    
+    .metric-card:hover:before {
+        transform: scaleX(1);
+    }
+    
+    /* Scrollbar */
+    ::-webkit-scrollbar {
+        width: 10px;
+        height: 10px;
+    }
+    
+    ::-webkit-scrollbar-track {
+        background: rgba(255, 255, 255, 0.05);
+        border-radius: 10px;
+    }
+    
+    ::-webkit-scrollbar-thumb {
+        background: linear-gradient(135deg, #667eea, #764ba2);
+        border-radius: 10px;
+        border: 2px solid rgba(255, 255, 255, 0.05);
+    }
+    
+    ::-webkit-scrollbar-thumb:hover {
+        background: linear-gradient(135deg, #764ba2, #667eea);
+    }
+    
+    /* Loading Animation */
+    @keyframes pulse {
+        0%, 100% { opacity: 1; }
+        50% { opacity: 0.5; }
+    }
+    
+    .loading {
+        animation: pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+    }
+    
+    /* Hover Effect for Stats */
+    .stat-item {
+        transition: all 0.3s ease;
+        cursor: pointer;
+    }
+    
+    .stat-item:hover {
+        transform: scale(1.05);
+    }
+    
+    /* Plotly Charts Background */
+    .js-plotly-plot {
+        border-radius: 16px;
+        overflow: hidden;
+    }
+    
+    /* Footer Enhancement */
+    footer {
+        background: rgba(255, 255, 255, 0.02);
+        border-top: 1px solid rgba(255, 255, 255, 0.1);
+        backdrop-filter: blur(10px);
+    }
+    
+    /* Code Blocks */
+    code {
+        background: rgba(102, 126, 234, 0.1);
+        border: 1px solid rgba(102, 126, 234, 0.3);
+        border-radius: 6px;
+        padding: 2px 6px;
+        color: #a5b4fc;
+        font-size: 0.9em;
+    }
+    
+    pre {
+        background: rgba(255, 255, 255, 0.05);
+        border: 1px solid rgba(255, 255, 255, 0.1);
+        border-radius: 12px;
+        padding: 16px;
     }
 </style>
 """, unsafe_allow_html=True)
@@ -117,12 +489,19 @@ network_viz = NetworkVisualization(db)
 # SIDEBAR NAVIGATION
 # ========================================
 with st.sidebar:
-    st.title("🕵️ CrimeGraphRAG")
+    # Logo/Title with gradient
+    st.markdown("""
+        <div style='text-align: center; padding: 20px 0;'>
+            <h1 style='font-size: 2rem; margin: 0;'>🕵️ CrimeGraphRAG</h1>
+            <p style='color: #a0aec0; font-size: 0.9rem; margin-top: 8px;'>AI-Powered Investigation Platform</p>
+        </div>
+    """, unsafe_allow_html=True)
+    
     st.markdown("---")
     
     st.markdown("### 📍 Navigation")
     
-    # Navigation buttons
+    # Navigation buttons with icons
     if st.button("📊 Dashboard", use_container_width=True, type="primary" if st.session_state.get('page', 'Dashboard') == 'Dashboard' else "secondary"):
         st.session_state.page = 'Dashboard'
         st.rerun()
@@ -143,6 +522,14 @@ with st.sidebar:
         st.session_state.page = 'Geographic Mapping'
         st.rerun()
     
+    if st.button("⏱️ Timeline Analysis", use_container_width=True, type="primary" if st.session_state.get('page') == 'Timeline Analysis' else "secondary"):
+        st.session_state.page = 'Timeline Analysis'
+        st.rerun()
+    
+    if st.button("📐 Graph Schema", use_container_width=True, type="primary" if st.session_state.get('page') == 'Graph Schema' else "secondary"):
+        st.session_state.page = 'Graph Schema'
+        st.rerun()
+    
     st.markdown("---")
     
     st.markdown("### 📊 System Status")
@@ -151,15 +538,35 @@ with st.sidebar:
         total_nodes = db.query("MATCH (n) RETURN count(n) as total")[0]['total']
         total_rels = db.query("MATCH ()-[r]->() RETURN count(r) as total")[0]['total']
         
-        st.metric("Graph Nodes", f"{total_nodes:,}")
-        st.metric("Relationships", f"{total_rels:,}")
+        # Modern metric cards
+        st.markdown(f"""
+            <div class='metric-card'>
+                <div style='color: #a0aec0; font-size: 0.85rem; font-weight: 600; margin-bottom: 8px;'>GRAPH NODES</div>
+                <div style='font-size: 1.8rem; font-weight: 700; color: #667eea;'>{total_nodes:,}</div>
+            </div>
+        """, unsafe_allow_html=True)
+        
+        st.markdown(f"""
+            <div class='metric-card' style='margin-top: 12px;'>
+                <div style='color: #a0aec0; font-size: 0.85rem; font-weight: 600; margin-bottom: 8px;'>RELATIONSHIPS</div>
+                <div style='font-size: 1.8rem; font-weight: 700; color: #764ba2;'>{total_rels:,}</div>
+            </div>
+        """, unsafe_allow_html=True)
         
         st.markdown("---")
-        st.caption(f"🕐 {datetime.now().strftime('%H:%M:%S')}")
-        st.caption("🟢 System Online")
-        st.caption("🗄️ Neo4j Connected")
+        
+        # Status badges
+        st.markdown(f"""
+            <div style='margin: 16px 0;'>
+                <div class='status-badge status-online'>🟢 System Online</div>
+            </div>
+            <div style='margin: 8px 0; color: #a0aec0; font-size: 0.85rem;'>
+                🕐 {datetime.now().strftime('%H:%M:%S')}<br/>
+                🗄️ Neo4j Connected
+            </div>
+        """, unsafe_allow_html=True)
     except:
-        st.caption("🔴 System Offline")
+        st.markdown("<div class='status-badge status-offline'>🔴 System Offline</div>", unsafe_allow_html=True)
 
 # Initialize page state
 if 'page' not in st.session_state:
@@ -169,582 +576,26 @@ if 'page' not in st.session_state:
 current_page = st.session_state.page
 
 # ========================================
-# MAIN HEADER
+# MAIN HEADER with Enhanced Styling
 # ========================================
-st.title("🕵️ CrimeGraphRAG Intelligence System")
-st.markdown("Advanced Crime Investigation Platform powered by Knowledge Graphs & AI")
+st.markdown("""
+    <div style='text-align: center; padding: 40px 0 20px 0;'>
+        <h1 style='font-size: 3rem; margin-bottom: 8px;'>🕵️ CrimeGraphRAG Intelligence System</h1>
+        <p style='color: #a0aec0; font-size: 1.1rem;'>Advanced Crime Investigation Platform powered by Knowledge Graphs & AI</p>
+    </div>
+""", unsafe_allow_html=True)
 st.markdown("---")
 
 # ========================================
 # PAGE: DASHBOARD
 # ========================================
-if current_page == 'Dashboard':
-    st.markdown("<h2 style='text-align: center;'>📊 Crime Intelligence Dashboard</h2>", unsafe_allow_html=True)
-    st.markdown("<p style='text-align: center; color: #94a3b8;'>Comprehensive overview of criminal activity and operational metrics</p>", unsafe_allow_html=True)
-    st.markdown("")
-    
-    # === CRITICAL METRICS ROW ===
-    col1, col2, col3, col4, col5 = st.columns(5)
-    
-    crime_count = db.query("MATCH (c:Crime) RETURN count(c) as count")[0]['count']
-    person_count = db.query("MATCH (p:Person) RETURN count(p) as count")[0]['count']
-    org_count = db.query("MATCH (o:Organization) RETURN count(o) as count")[0]['count']
-    evidence_count = db.query("MATCH (e:Evidence) RETURN count(e) as count")[0]['count']
-    weapon_count = db.query("MATCH (w:Weapon) RETURN count(w) as count")[0]['count']
-    
-    with col1:
-        st.metric("🚨 Total Crimes", f"{crime_count:,}", delta="Real Chicago Data")
-    
-    with col2:
-        st.metric("👤 Suspects", person_count, delta=f"{person_count} tracked")
-    
-    with col3:
-        st.metric("🏴 Gangs", org_count, delta="Active")
-    
-    with col4:
-        st.metric("📦 Evidence", evidence_count, delta="Catalogued")
-    
-    with col5:
-        st.metric("🔫 Weapons", weapon_count, delta="Registered")
-    
-    st.markdown("---")
-    
-    # === THREAT ASSESSMENT ===
-    st.markdown('<div class="section-title">🎯 Threat Assessment & Priority Intelligence</div>', unsafe_allow_html=True)
-    
-    col1, col2, col3 = st.columns(3)
-    
-    with col1:
-        repeat = db.query("""
-            MATCH (p:Person)-[:PARTY_TO]->(c:Crime)
-            WITH p, count(c) as crimes
-            WHERE crimes > 2
-            RETURN count(p) as total, max(crimes) as max_crimes
-        """)
-        
-        if repeat and repeat[0]['total'] > 0:
-            st.markdown(f"""
-            <div class="alert-box alert-critical">
-                <h4>⚠️ Serial Offenders</h4>
-                <p style='font-size: 1.4rem; margin: 10px 0 0 0;'>
-                    <strong>{repeat[0]['total']}</strong> suspects
-                </p>
-                <span style='color: #94a3b8; font-size: 0.9rem;'>
-                    Max: {repeat[0]['max_crimes']} crimes each
-                </span>
-            </div>
-            """, unsafe_allow_html=True)
-    
-    with col2:
-        armed = db.query("""
-            MATCH (p:Person)-[:OWNS]->(w:Weapon)
-            OPTIONAL MATCH (p)-[:MEMBER_OF]->(o:Organization)
-            RETURN count(DISTINCT p) as total, count(DISTINCT o) as gangs
-        """)
-        
-        if armed and armed[0]['total'] > 0:
-            st.markdown(f"""
-            <div class="alert-box alert-warning">
-                <h4>🔫 Armed Suspects</h4>
-                <p style='font-size: 1.4rem; margin: 10px 0 0 0;'>
-                    <strong>{armed[0]['total']}</strong> individuals
-                </p>
-                <span style='color: #94a3b8; font-size: 0.9rem;'>
-                    {armed[0]['gangs']} gang-affiliated
-                </span>
-            </div>
-            """, unsafe_allow_html=True)
-    
-    with col3:
-        connected = db.query("""
-            MATCH (p:Person)-[:KNOWS]-(other:Person)
-            WITH p, count(DISTINCT other) as connections
-            WHERE connections > 5
-            RETURN count(p) as total, max(connections) as max_connections
-        """)
-        
-        if connected and connected[0]['total'] > 0:
-            st.markdown(f"""
-            <div class="alert-box alert-info">
-                <h4>🕸️ Network Hubs</h4>
-                <p style='font-size: 1.4rem; margin: 10px 0 0 0;'>
-                    <strong>{connected[0]['total']}</strong> connectors
-                </p>
-                <span style='color: #94a3b8; font-size: 0.9rem;'>
-                    Max: {connected[0]['max_connections']} connections
-                </span>
-            </div>
-            """, unsafe_allow_html=True)
-        else:
-            st.markdown(f"""
-            <div class="alert-box alert-info">
-                <h4>🕸️ Network Analysis</h4>
-                <p style='font-size: 1.4rem; margin: 10px 0 0 0;'>
-                    <strong>{person_count}</strong> persons
-                </p>
-                <span style='color: #94a3b8; font-size: 0.9rem;'>
-                    In criminal network
-                </span>
-            </div>
-            """, unsafe_allow_html=True)
-    
-    st.markdown("---")
-    
-    # === CRIME ANALYTICS ===
-    st.markdown('<div class="section-title">📈 Crime Analytics & Patterns</div>', unsafe_allow_html=True)
-    
-    col1, col2, col3 = st.columns([1.5, 1, 1])
-    
-    with col1:
-        st.markdown("#### Crime Type Distribution")
-        crime_types = db.query("""
-            MATCH (c:Crime)
-            RETURN c.type as type, count(c) as count
-            ORDER BY count DESC
-            LIMIT 10
-        """)
-        
-        if crime_types:
-            df = pd.DataFrame(crime_types)
-            
-            fig = px.bar(
-                df, 
-                x='type', 
-                y='count',
-                color='count',
-                color_continuous_scale='Reds',
-                text='count'
-            )
-            
-            fig.update_traces(textposition='outside')
-            fig.update_layout(
-                plot_bgcolor='rgba(0,0,0,0)',
-                paper_bgcolor='rgba(0,0,0,0)',
-                font=dict(color='#e2e8f0'),
-                xaxis_title="Crime Type",
-                yaxis_title="Count",
-                showlegend=False,
-                height=400,
-                xaxis_tickangle=-45
-            )
-            st.plotly_chart(fig, use_container_width=True)
-    
-    with col2:
-        st.markdown("#### Severity Breakdown")
-        severity = db.query("""
-            MATCH (c:Crime)
-            RETURN c.severity as severity, count(c) as count
-            ORDER BY count DESC
-        """)
-        
-        if severity:
-            df = pd.DataFrame(severity)
-            
-            colors = {'severe': '#ef4444', 'moderate': '#f59e0b', 'minor': '#10b981'}
-            
-            fig = px.pie(
-                df,
-                values='count',
-                names='severity',
-                color='severity',
-                color_discrete_map=colors,
-                hole=0.4
-            )
-            
-            fig.update_traces(textinfo='label+percent', textfont_size=14)
-            fig.update_layout(
-                plot_bgcolor='rgba(0,0,0,0)',
-                paper_bgcolor='rgba(0,0,0,0)',
-                font=dict(color='#e2e8f0'),
-                height=400
-            )
-            st.plotly_chart(fig, use_container_width=True)
-    
-    with col3:
-        st.markdown("#### Evidence Status")
-        
-        evidence_sig = db.query("""
-            MATCH (e:Evidence)
-            RETURN e.significance as significance, count(e) as count
-            ORDER BY 
-                CASE e.significance
-                    WHEN 'critical' THEN 1
-                    WHEN 'high' THEN 2
-                    WHEN 'medium' THEN 3
-                    ELSE 4
-                END
-        """)
-        
-        if evidence_sig:
-            df = pd.DataFrame(evidence_sig)
-            
-            colors = {'critical': '#ef4444', 'high': '#f59e0b', 'medium': '#3b82f6', 'low': '#10b981'}
-            
-            fig = px.bar(
-                df,
-                x='significance',
-                y='count',
-                color='significance',
-                color_discrete_map=colors,
-                text='count'
-            )
-            
-            fig.update_traces(textposition='outside')
-            fig.update_layout(
-                plot_bgcolor='rgba(0,0,0,0)',
-                paper_bgcolor='rgba(0,0,0,0)',
-                font=dict(color='#e2e8f0'),
-                xaxis_title="Significance",
-                yaxis_title="Count",
-                showlegend=False,
-                height=400
-            )
-            st.plotly_chart(fig, use_container_width=True)
-    
-    st.markdown("---")
-    
-    # === GANG INTELLIGENCE ===
-    st.markdown('<div class="section-title">🏴 Gang Intelligence & Organized Crime</div>', unsafe_allow_html=True)
-    
-    col1, col2 = st.columns([2, 1])
-    
-    with col1:
-        st.markdown("#### Gang Activity Comparison")
-        gang_data = db.query("""
-            MATCH (o:Organization)<-[:MEMBER_OF]-(p:Person)-[:PARTY_TO]->(c:Crime)
-            WITH o.name as gang, 
-                 count(DISTINCT p) as members,
-                 count(DISTINCT c) as crimes
-            RETURN gang, members, crimes
-            ORDER BY crimes DESC
-        """)
-        
-        if gang_data:
-            df = pd.DataFrame(gang_data)
-            
-            fig = go.Figure()
-            
-            fig.add_trace(go.Bar(
-                name='Members',
-                x=df['gang'],
-                y=df['members'],
-                marker_color='#667eea',
-                yaxis='y'
-            ))
-            
-            fig.add_trace(go.Scatter(
-                name='Crimes',
-                x=df['gang'],
-                y=df['crimes'],
-                mode='lines+markers',
-                marker=dict(size=12, color='#ef4444', line=dict(width=2, color='white')),
-                line=dict(width=3, color='#ef4444'),
-                yaxis='y2'
-            ))
-            
-            fig.update_layout(
-                plot_bgcolor='rgba(0,0,0,0)',
-                paper_bgcolor='rgba(0,0,0,0)',
-                font=dict(color='#e2e8f0'),
-                yaxis=dict(title='Members', side='left', color='#667eea'),
-                yaxis2=dict(title='Crimes', side='right', overlaying='y', color='#ef4444'),
-                legend=dict(orientation='h', yanchor='bottom', y=1.02),
-                height=400,
-                xaxis_tickangle=-45
-            )
-            st.plotly_chart(fig, use_container_width=True)
-    
-    with col2:
-        st.markdown("#### Gang Threat Levels")
-        
-        if gang_data:
-            for i, gang in enumerate(df.to_dict('records'), 1):
-                threat_level = '🔴 High' if gang['crimes'] > 30 else '🟠 Medium' if gang['crimes'] > 15 else '🟡 Low'
-                color = '#ef4444' if gang['crimes'] > 30 else '#f59e0b' if gang['crimes'] > 15 else '#3b82f6'
-                
-                st.markdown(f"""
-                <div style='background: rgba(255,255,255,0.05); padding: 15px; border-radius: 10px; margin: 10px 0; border-left: 4px solid {color};'>
-                    <strong style='font-size: 1.05rem;'>{gang['gang']}</strong>
-                    <div style='margin-top: 8px; color: #94a3b8; font-size: 0.9rem;'>
-                        👥 {gang['members']} members • 🚨 {gang['crimes']} crimes<br/>
-                        Threat: {threat_level}
-                    </div>
-                </div>
-                """, unsafe_allow_html=True)
-    
-    st.markdown("---")
-    
-    # === INVESTIGATOR WORKLOAD ===
-    st.markdown('<div class="section-title">👮 Investigator Workload & Performance</div>', unsafe_allow_html=True)
-    
-    col1, col2 = st.columns(2)
-    
-    with col1:
-        st.markdown("#### Case Distribution by Investigator")
-        inv_data = db.query("""
-            MATCH (i:Investigator)<-[:INVESTIGATED_BY]-(c:Crime)
-            WITH i.name as investigator,
-                 count(CASE WHEN c.status = 'solved' THEN 1 END) as solved,
-                 count(CASE WHEN c.status <> 'solved' THEN 1 END) as active
-            RETURN investigator, solved, active
-            ORDER BY (solved + active) DESC
-            LIMIT 10
-        """)
-        
-        if inv_data:
-            df = pd.DataFrame(inv_data)
-            
-            fig = go.Figure()
-            
-            fig.add_trace(go.Bar(
-                name='Solved',
-                x=df['investigator'],
-                y=df['solved'],
-                marker_color='#10b981',
-                text=df['solved'],
-                textposition='auto'
-            ))
-            
-            fig.add_trace(go.Bar(
-                name='Active',
-                x=df['investigator'],
-                y=df['active'],
-                marker_color='#f59e0b',
-                text=df['active'],
-                textposition='auto'
-            ))
-            
-            fig.update_layout(
-                barmode='stack',
-                plot_bgcolor='rgba(0,0,0,0)',
-                paper_bgcolor='rgba(0,0,0,0)',
-                font=dict(color='#e2e8f0'),
-                height=400,
-                xaxis_tickangle=-45,
-                legend=dict(orientation='h', yanchor='bottom', y=1.02),
-                xaxis_title="Investigator",
-                yaxis_title="Cases"
-            )
-            st.plotly_chart(fig, use_container_width=True)
-    
-    with col2:
-        st.markdown("#### Department Performance")
-        
-        dept_data = db.query("""
-            MATCH (i:Investigator)
-            RETURN i.department as department, 
-                   count(i) as officers,
-                   sum(i.cases_solved) as total_solved,
-                   sum(i.active_cases) as total_active
-            ORDER BY total_solved DESC
-        """)
-        
-        if dept_data:
-            df = pd.DataFrame(dept_data)
-            
-            fig = px.bar(
-                df,
-                x='department',
-                y=['total_solved', 'total_active'],
-                barmode='group',
-                color_discrete_map={'total_solved': '#10b981', 'total_active': '#f59e0b'},
-                labels={'value': 'Cases', 'variable': 'Status'}
-            )
-            
-            fig.update_layout(
-                plot_bgcolor='rgba(0,0,0,0)',
-                paper_bgcolor='rgba(0,0,0,0)',
-                font=dict(color='#e2e8f0'),
-                height=400,
-                xaxis_title="Department",
-                yaxis_title="Cases"
-            )
-            st.plotly_chart(fig, use_container_width=True)
-    
-    st.markdown("---")
-    
-    # === GEOGRAPHIC ANALYSIS ===
-    st.markdown('<div class="section-title">🗺️ Geographic Crime Distribution</div>', unsafe_allow_html=True)
-    
-    col1, col2 = st.columns([2, 1])
-    
-    with col1:
-        st.markdown("#### Crime Density by District")
-        district_data = db.query("""
-            MATCH (c:Crime)-[:OCCURRED_AT]->(l:Location)
-            WHERE l.district IS NOT NULL
-            RETURN l.district as district, count(c) as crimes
-            ORDER BY crimes DESC
-            LIMIT 15
-        """)
-        
-        if district_data:
-            df = pd.DataFrame(district_data)
-            
-            fig = px.bar(
-                df,
-                x='district',
-                y='crimes',
-                color='crimes',
-                color_continuous_scale='Plasma',
-                text='crimes'
-            )
-            
-            fig.update_traces(textposition='outside')
-            fig.update_layout(
-                plot_bgcolor='rgba(0,0,0,0)',
-                paper_bgcolor='rgba(0,0,0,0)',
-                font=dict(color='#e2e8f0'),
-                xaxis_title="District",
-                yaxis_title="Crime Count",
-                showlegend=False,
-                height=400
-            )
-            st.plotly_chart(fig, use_container_width=True)
-    
-    with col2:
-        st.markdown("#### Top 10 Hotspots")
-        hotspots_list = db.query("""
-            MATCH (c:Crime)-[:OCCURRED_AT]->(l:Location)
-            RETURN l.name as location, l.district as district, count(c) as crimes
-            ORDER BY crimes DESC
-            LIMIT 10
-        """)
-        
-        if hotspots_list:
-            for i, spot in enumerate(hotspots_list, 1):
-                intensity = '🔥' if spot['crimes'] > 15 else '🟠' if spot['crimes'] > 10 else '🟡'
-                
-                st.markdown(f"""
-                <div style='background: rgba(255,255,255,0.05); padding: 10px; border-radius: 8px; margin: 6px 0;'>
-                    <strong>{i}. {spot['location'][:35]}</strong>
-                    <div style='color: #94a3b8; font-size: 0.85rem; margin-top: 4px;'>
-                        District {spot['district']} • {intensity} {spot['crimes']} crimes
-                    </div>
-                </div>
-                """, unsafe_allow_html=True)
-    
-    st.markdown("---")
-    
-    # === HIGH-RISK OFFENDERS ===
-    st.markdown('<div class="section-title">🎯 High-Risk Offender Profiles</div>', unsafe_allow_html=True)
-    
-    targets = db.query("""
-        MATCH (p:Person)-[:PARTY_TO]->(c:Crime)
-        WITH p, count(c) as crimes
-        WHERE crimes > 1
-        OPTIONAL MATCH (p)-[:OWNS]->(w:Weapon)
-        OPTIONAL MATCH (p)-[:MEMBER_OF]->(o:Organization)
-        RETURN p.name as Name,
-               p.age as Age,
-               crimes as Crimes,
-               count(DISTINCT w) as Weapons,
-               COALESCE(o.name, 'Independent') as Gang,
-               CASE 
-                   WHEN crimes > 4 AND count(w) > 0 THEN '🔴 Critical'
-                   WHEN crimes > 3 THEN '🟠 High'
-                   WHEN crimes > 1 THEN '🟡 Medium'
-                   ELSE '🟢 Low'
-               END as Threat
-        ORDER BY crimes DESC, Weapons DESC
-        LIMIT 20
-    """)
-    
-    if targets:
-        df = pd.DataFrame(targets)
-        
-        def color_threat(val):
-            if '🔴' in str(val):
-                return 'background-color: rgba(239, 68, 68, 0.3); font-weight: bold'
-            elif '🟠' in str(val):
-                return 'background-color: rgba(245, 158, 11, 0.3); font-weight: bold'
-            elif '🟡' in str(val):
-                return 'background-color: rgba(59, 130, 246, 0.3)'
-            else:
-                return 'background-color: rgba(16, 185, 129, 0.2)'
-        
-        styled = df.style.applymap(color_threat, subset=['Threat'])
-        st.dataframe(styled, use_container_width=True, hide_index=True, height=450)
-    
-    st.markdown("---")
-    
-    # === LATEST CRIMES ===
-    st.markdown('<div class="section-title">🚨 Latest Criminal Activity</div>', unsafe_allow_html=True)
-    
-    recent = db.query("""
-        MATCH (c:Crime)
-        OPTIONAL MATCH (c)-[:OCCURRED_AT]->(l:Location)
-        OPTIONAL MATCH (p:Person)-[:PARTY_TO]->(c)
-        RETURN c.id as id,
-               c.type as type,
-               c.date as date,
-               c.severity as severity,
-               c.status as status,
-               COALESCE(l.name, 'Unknown') as location,
-               COALESCE(l.district, 'N/A') as district,
-               COALESCE(collect(DISTINCT p.name)[0..2], ['Unknown']) as suspects
-        ORDER BY c.date DESC
-        LIMIT 15
-    """)
-    
-    if recent:
-        df = pd.DataFrame(recent)
-        df['suspects_str'] = df['suspects'].apply(lambda x: ', '.join(x) if isinstance(x, list) else 'Unknown')
-        
-        # Create timeline visualization
-        fig = go.Figure()
-        
-        # Color mapping
-        severity_colors = {'severe': '#ef4444', 'moderate': '#f59e0b', 'minor': '#10b981'}
-        df['color'] = df['severity'].map(severity_colors)
-        
-        # Create scatter plot for timeline
-        fig.add_trace(go.Scatter(
-            x=df['date'],
-            y=df['type'],
-            mode='markers',
-            marker=dict(
-                size=20,
-                color=df['color'],
-                line=dict(width=2, color='white'),
-                symbol='circle'
-            ),
-            text=df.apply(lambda row: f"<b>{row['type']}</b><br>Location: {row['location']}<br>Suspects: {row['suspects_str']}<br>Status: {row['status']}", axis=1),
-            hovertemplate='%{text}<extra></extra>',
-            showlegend=False
-        ))
-        
-        fig.update_layout(
-            title='Crime Timeline (Recent Activity)',
-            plot_bgcolor='rgba(0,0,0,0)',
-            paper_bgcolor='rgba(0,0,0,0)',
-            font=dict(color='#e2e8f0'),
-            height=400,
-            xaxis_title="Date",
-            yaxis_title="Crime Type",
-            xaxis=dict(gridcolor='rgba(255,255,255,0.1)'),
-            yaxis=dict(gridcolor='rgba(255,255,255,0.1)')
-        )
-        st.plotly_chart(fig, use_container_width=True)
-        
-        # Table view
-        st.markdown("#### 📋 Detailed Activity Log")
-        
-        display_df = df[['id', 'type', 'date', 'severity', 'status', 'location', 'district', 'suspects_str']].copy()
-        display_df.columns = ['ID', 'Type', 'Date', 'Severity', 'Status', 'Location', 'District', 'Suspects']
-        
-        def color_severity(val):
-            if val == 'severe':
-                return 'background-color: rgba(239, 68, 68, 0.25)'
-            elif val == 'moderate':
-                return 'background-color: rgba(245, 158, 11, 0.25)'
-            else:
-                return 'background-color: rgba(16, 185, 129, 0.2)'
-        
-        styled = display_df.style.applymap(color_severity, subset=['Severity'])
-        st.dataframe(styled, use_container_width=True, hide_index=True, height=400)
 
 # ========================================
+# PAGE: DASHBOARD
+# ========================================
+if current_page == 'Dashboard':
+    render_enhanced_dashboard(db)
+
 # PAGE: AI ASSISTANT (CHAT)
 # ========================================
 elif current_page == 'AI Assistant':
@@ -925,18 +776,39 @@ elif current_page == 'Geographic Mapping':
     render_geographic_page(db)
 
 # ========================================
+# PAGE: TIMELINE ANALYSIS
+# ========================================
+elif current_page == 'Timeline Analysis':
+    render_timeline_interface(db)
+
+# ========================================
+# PAGE: GRAPH SCHEMA
+# ========================================
+elif current_page == 'Graph Schema':
+    render_schema_page(db)
+
+# ========================================
 # DEFAULT PAGE
 # ========================================
 else:
     st.session_state.page = 'Dashboard'
     st.rerun()
 
-# Footer
+# Enhanced Footer
 st.markdown("---")
 st.markdown("""
-<div style='text-align: center; color: #64748b; padding: 1.5rem;'>
-    <p style='font-size: 1.1rem; margin-bottom: 8px;'>🕵️ <strong>CrimeGraphRAG</strong> - Advanced Crime Investigation Platform</p>
-    <p style='font-size: 0.9rem; color: #94a3b8;'>Neo4j Knowledge Graphs • OpenRouter AI • Real Chicago Crime Data</p>
-    <p style='font-size: 0.8rem; margin-top: 12px;'>DAMG 7374 - Knowledge Graphs with GenAI | Northeastern University</p>
+<div style='text-align: center; padding: 2rem; background: rgba(255, 255, 255, 0.02); border-radius: 16px; margin-top: 40px;'>
+    <h3 style='font-size: 1.3rem; margin-bottom: 12px; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); -webkit-background-clip: text; -webkit-text-fill-color: transparent;'>
+        🕵️ CrimeGraphRAG Intelligence System
+    </h3>
+    <p style='color: #a0aec0; font-size: 0.95rem; margin: 8px 0;'>
+        Neo4j Knowledge Graphs • OpenRouter AI • Real Chicago Crime Data
+    </p>
+    <p style='color: #718096; font-size: 0.85rem; margin-top: 12px;'>
+        DAMG 7374 - Knowledge Graphs with GenAI | Northeastern University
+    </p>
+    <div style='margin-top: 16px; display: flex; justify-content: center; gap: 16px;'>
+        <span class='status-badge status-online'>Production Ready</span>
+    </div>
 </div>
 """, unsafe_allow_html=True)

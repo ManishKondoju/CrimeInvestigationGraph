@@ -1,5 +1,5 @@
-# load_hybrid_data.py - Real Chicago Crimes + Synthetic Enrichment
-# This is the BEST approach: Real data credibility + Full graph capabilities
+# load_hybrid_data.py - Real Chicago Crimes + Synthetic Enrichment (TIMELINE OPTIMIZED)
+# This is the BEST approach: Real data credibility + Full graph capabilities + Timeline-ready
 
 import requests
 from database import Database
@@ -14,6 +14,110 @@ print("="*60)
 
 # Clear database
 db.clear_all()
+
+# ============================================================================
+# HELPER FUNCTIONS FOR REALISTIC DATA
+# ============================================================================
+
+# Smart severity mapping based on crime type
+SEVERITY_MAP = {
+    'HOMICIDE': 'critical',
+    'CRIMINAL SEXUAL ASSAULT': 'critical',
+    'KIDNAPPING': 'critical',
+    'ARSON': 'high',
+    'ROBBERY': 'high',
+    'ASSAULT': 'high',
+    'BATTERY': 'high',
+    'WEAPONS VIOLATION': 'high',
+    'BURGLARY': 'medium',
+    'MOTOR VEHICLE THEFT': 'medium',
+    'THEFT': 'medium',
+    'NARCOTICS': 'medium',
+    'CRIMINAL DAMAGE': 'low',
+    'DECEPTIVE PRACTICE': 'low',
+    'CRIMINAL TRESPASS': 'low',
+}
+
+# Realistic time distribution by crime type (start_hour, end_hour)
+TIME_DISTRIBUTION = {
+    'HOMICIDE': (20, 4),           # 8 PM to 4 AM
+    'ROBBERY': (18, 3),            # 6 PM to 3 AM
+    'ASSAULT': (19, 2),            # 7 PM to 2 AM
+    'BATTERY': (19, 2),            # 7 PM to 2 AM
+    'BURGLARY': (1, 5),            # 1 AM to 5 AM (night)
+    'THEFT': (10, 18),             # 10 AM to 6 PM (daytime)
+    'MOTOR VEHICLE THEFT': (22, 5), # 10 PM to 5 AM
+    'NARCOTICS': (14, 23),         # 2 PM to 11 PM
+    'CRIMINAL DAMAGE': (0, 6),     # Midnight to 6 AM
+    'WEAPONS VIOLATION': (20, 3),  # 8 PM to 3 AM
+    'CRIMINAL SEXUAL ASSAULT': (22, 4), # 10 PM to 4 AM
+    'KIDNAPPING': (20, 5),         # 8 PM to 5 AM
+    'ARSON': (2, 5),               # 2 AM to 5 AM
+    'DEFAULT': (8, 22)             # 8 AM to 10 PM (general)
+}
+
+def get_realistic_time(crime_type):
+    """Generate realistic time based on crime type"""
+    time_range = TIME_DISTRIBUTION.get(crime_type, TIME_DISTRIBUTION['DEFAULT'])
+    start_hour, end_hour = time_range
+    
+    if start_hour < end_hour:
+        # Normal range (e.g., 10 AM to 6 PM)
+        hour = random.randint(start_hour, end_hour)
+    else:
+        # Wraps around midnight (e.g., 10 PM to 3 AM)
+        if random.random() < 0.5:
+            hour = random.randint(start_hour, 23)
+        else:
+            hour = random.randint(0, end_hour)
+    
+    minute = random.randint(0, 59)
+    second = random.randint(0, 59)
+    
+    return f"{hour:02d}:{minute:02d}:{second:02d}"
+
+def get_severity(crime_type):
+    """Map crime type to realistic severity"""
+    # Try exact match first
+    if crime_type in SEVERITY_MAP:
+        return SEVERITY_MAP[crime_type]
+    
+    # Try partial match
+    for key, severity in SEVERITY_MAP.items():
+        if key in crime_type.upper():
+            return severity
+    
+    # Default based on common patterns
+    if any(word in crime_type.upper() for word in ['MURDER', 'SHOOTING', 'SEXUAL']):
+        return 'critical'
+    elif any(word in crime_type.upper() for word in ['ASSAULT', 'ROBBERY', 'WEAPON']):
+        return 'high'
+    elif any(word in crime_type.upper() for word in ['THEFT', 'BURGLARY', 'VEHICLE']):
+        return 'medium'
+    else:
+        return 'low'
+
+def get_status(arrest_made, severity):
+    """Generate realistic case status"""
+    if arrest_made:
+        # Arrested cases more likely to be solved
+        return random.choices(
+            ['solved', 'under investigation'],
+            weights=[0.8, 0.2]
+        )[0]
+    else:
+        # No arrest - distributed across statuses
+        if severity == 'critical':
+            # Critical cases stay active longer
+            return random.choices(
+                ['open', 'under investigation', 'cold case'],
+                weights=[0.4, 0.5, 0.1]
+            )[0]
+        else:
+            return random.choices(
+                ['open', 'under investigation', 'cold case', 'closed'],
+                weights=[0.3, 0.3, 0.2, 0.2]
+            )[0]
 
 # ============================================================================
 # PART 1: FETCH REAL CRIME DATA FROM CHICAGO API
@@ -63,8 +167,9 @@ for crime in real_crimes:
             }
             location_count += 1
 
-# Create location nodes
-for loc_name, loc_data in list(unique_locations.items())[:100]:
+# Create location nodes (all unique locations from API)
+locations_created = 0
+for loc_name, loc_data in unique_locations.items():
     db.query("""
         CREATE (l:Location {
             name: $name,
@@ -76,14 +181,90 @@ for loc_name, loc_data in list(unique_locations.items())[:100]:
             source: 'real_chicago_api'
         })
     """, loc_data)
+    locations_created += 1
 
-print(f"✅ Created {min(100, len(unique_locations))} REAL locations from Chicago data")
+print(f"✅ Created {locations_created} REAL locations from Chicago data")
+
+# Add some synthetic high-traffic locations for better coverage
+print("  📍 Adding synthetic high-traffic locations...")
+synthetic_locations = [
+    # Downtown & Loop (District 1)
+    {"name": "Chicago Union Station", "lat": 41.8789, "lon": -87.6400, "district": "1", "beat": "111", "type": "transit_hub"},
+    {"name": "Millennium Park", "lat": 41.8826, "lon": -87.6226, "district": "1", "beat": "112", "type": "park"},
+    {"name": "Willis Tower Area", "lat": 41.8789, "lon": -87.6359, "district": "1", "beat": "113", "type": "commercial"},
+    {"name": "Grant Park", "lat": 41.8758, "lon": -87.6189, "district": "1", "beat": "114", "type": "park"},
+    
+    # Near North Side (District 18)
+    {"name": "Navy Pier", "lat": 41.8917, "lon": -87.6086, "district": "18", "beat": "1811", "type": "tourist_attraction"},
+    {"name": "Magnificent Mile", "lat": 41.8969, "lon": -87.6230, "district": "18", "beat": "1823", "type": "shopping_district"},
+    {"name": "Lincoln Park", "lat": 41.9217, "lon": -87.6341, "district": "18", "beat": "1825", "type": "park"},
+    
+    # Near South Side (District 2, 3, 9)
+    {"name": "Hyde Park", "lat": 41.7943, "lon": -87.5907, "district": "3", "beat": "312", "type": "neighborhood"},
+    {"name": "Chinatown", "lat": 41.8525, "lon": -87.6320, "district": "9", "beat": "912", "type": "neighborhood"},
+    {"name": "Bronzeville", "lat": 41.8115, "lon": -87.6123, "district": "2", "beat": "211", "type": "neighborhood"},
+    
+    # West Side (District 11, 12, 15)
+    {"name": "United Center Area", "lat": 41.8807, "lon": -87.6742, "district": "11", "beat": "1115", "type": "sports_venue"},
+    {"name": "Little Italy", "lat": 41.8551, "lon": -87.6505, "district": "12", "beat": "1214", "type": "neighborhood"},
+    {"name": "Greektown", "lat": 41.8829, "lon": -87.6487, "district": "12", "beat": "1215", "type": "neighborhood"},
+    {"name": "Garfield Park", "lat": 41.8843, "lon": -87.7162, "district": "11", "beat": "1122", "type": "park"},
+    {"name": "Austin Neighborhood", "lat": 41.8978, "lon": -87.7597, "district": "15", "beat": "1511", "type": "neighborhood"},
+    
+    # North Side (District 19, 20, 24)
+    {"name": "Wrigley Field Area", "lat": 41.9484, "lon": -87.6553, "district": "19", "beat": "1924", "type": "sports_venue"},
+    {"name": "Lakeview", "lat": 41.9403, "lon": -87.6541, "district": "19", "beat": "1931", "type": "neighborhood"},
+    {"name": "Rogers Park", "lat": 41.9978, "lon": -87.6661, "district": "24", "beat": "2411", "type": "neighborhood"},
+    {"name": "Lincoln Square", "lat": 41.9682, "lon": -87.6889, "district": "20", "beat": "2011", "type": "neighborhood"},
+    
+    # South Side (District 4, 5, 6, 7, 8)
+    {"name": "Englewood", "lat": 41.7794, "lon": -87.6464, "district": "7", "beat": "711", "type": "neighborhood"},
+    {"name": "South Shore", "lat": 41.7569, "lon": -87.5706, "district": "4", "beat": "411", "type": "neighborhood"},
+    {"name": "Chatham", "lat": 41.7316, "lon": -87.6059, "district": "6", "beat": "611", "type": "neighborhood"},
+    {"name": "Auburn Gresham", "lat": 41.7437, "lon": -87.6511, "district": "6", "beat": "621", "type": "neighborhood"},
+    {"name": "Roseland", "lat": 41.6928, "lon": -87.6125, "district": "5", "beat": "511", "type": "neighborhood"},
+    
+    # Southwest Side (District 8, 9, 10)
+    {"name": "Midway International Airport", "lat": 41.7868, "lon": -87.7522, "district": "8", "beat": "812", "type": "airport"},
+    {"name": "Ashburn", "lat": 41.7434, "lon": -87.7109, "district": "8", "beat": "821", "type": "neighborhood"},
+    {"name": "Beverly", "lat": 41.7205, "lon": -87.6751, "district": "22", "beat": "2211", "type": "neighborhood"},
+    
+    # Northwest Side (District 16, 17, 25)
+    {"name": "O'Hare International Airport", "lat": 41.9742, "lon": -87.9073, "district": "16", "beat": "1611", "type": "airport"},
+    {"name": "Jefferson Park", "lat": 41.9704, "lon": -87.7608, "district": "16", "beat": "1621", "type": "neighborhood"},
+    {"name": "Albany Park", "lat": 41.9683, "lon": -87.7231, "district": "17", "beat": "1711", "type": "neighborhood"},
+    {"name": "Portage Park", "lat": 41.9550, "lon": -87.7647, "district": "16", "beat": "1631", "type": "neighborhood"},
+    
+    # Commercial/Shopping Districts
+    {"name": "State Street Shopping", "lat": 41.8819, "lon": -87.6278, "district": "1", "beat": "115", "type": "shopping_district"},
+    {"name": "Michigan Avenue", "lat": 41.8858, "lon": -87.6241, "district": "18", "beat": "1831", "type": "shopping_district"},
+    
+    # Transit Hubs
+    {"name": "95th/Dan Ryan CTA", "lat": 41.7225, "lon": -87.6244, "district": "5", "beat": "521", "type": "transit_hub"},
+    {"name": "Roosevelt/State CTA", "lat": 41.8675, "lon": -87.6270, "district": "1", "beat": "116", "type": "transit_hub"},
+]
+
+for loc in synthetic_locations:
+    db.query("""
+        CREATE (l:Location {
+            name: $name,
+            latitude: $lat,
+            longitude: $lon,
+            district: $district,
+            beat: $beat,
+            type: $type,
+            source: 'synthetic'
+        })
+    """, loc)
+
+print(f"  ✅ Added {len(synthetic_locations)} synthetic high-traffic locations")
+print(f"📍 Total Locations: {locations_created + len(synthetic_locations)}")
 
 # ============================================================================
-# PART 3: CREATE CRIMES FROM REAL DATA
+# PART 3: CREATE CRIMES FROM REAL DATA (TIMELINE OPTIMIZED)
 # ============================================================================
 
-print("\n🚨 Step 3: Creating crimes from REAL Chicago data...")
+print("\n🚨 Step 3: Creating crimes from REAL Chicago data (with timeline enhancements)...")
 
 crimes_created = 0
 crime_ids = []
@@ -93,6 +274,21 @@ for crime in real_crimes[:500]:
         continue
     
     crime_id = crime.get('id', f"REAL{crimes_created:04d}")
+    crime_type = crime.get('primary_type', 'Unknown')
+    
+    # Extract date from API
+    api_date = crime.get('date', '')
+    crime_date = api_date[:10] if api_date else f"2024-{random.randint(1, 10):02d}-{random.randint(1, 28):02d}"
+    
+    # Generate realistic time based on crime type (not API time which is often midnight)
+    crime_time = get_realistic_time(crime_type)
+    
+    # Smart severity mapping
+    severity = get_severity(crime_type)
+    
+    # Realistic status based on arrest and severity
+    arrest_made = crime.get('arrest', 'false') == 'true'
+    status = get_status(arrest_made, severity)
     
     db.query("""
         CREATE (c:Crime {
@@ -109,29 +305,89 @@ for crime in real_crimes[:500]:
         })
     """, {
         "id": crime_id,
-        "type": crime.get('primary_type', 'Unknown'),
-        "date": crime.get('date', '')[:10],
-        "time": crime.get('date', '')[11:16] if len(crime.get('date', '')) > 11 else '00:00',
+        "type": crime_type,
+        "date": crime_date,
+        "time": crime_time,
         "case_number": crime.get('case_number', 'UNKNOWN'),
         "description": crime.get('description', '')[:200],
-        "arrest": crime.get('arrest', 'false') == 'true',
-        "severity": random.choice(['minor', 'moderate', 'severe']),
-        "status": 'solved' if crime.get('arrest') == 'true' else random.choice(['investigating', 'cold'])
+        "arrest": arrest_made,
+        "severity": severity,
+        "status": status
     })
     
     # Link to location
     block = crime.get('block', '')
-    if block in unique_locations:
+    if block and block in unique_locations:
+        # Link to exact real location
         db.query("""
             MATCH (c:Crime {id: $crime_id})
             MATCH (l:Location {name: $location})
             MERGE (c)-[:OCCURRED_AT]->(l)
         """, {"crime_id": crime_id, "location": block})
+    elif 'district' in crime and crime.get('district'):
+        # Link to synthetic location in same district
+        district = crime.get('district')
+        fallback_location = db.query("""
+            MATCH (l:Location {district: $district, source: 'synthetic'})
+            RETURN l.name as name
+            LIMIT 1
+        """, {"district": str(district)})
+        
+        if fallback_location:
+            db.query("""
+                MATCH (c:Crime {id: $crime_id})
+                MATCH (l:Location {name: $location})
+                MERGE (c)-[:OCCURRED_AT]->(l)
+            """, {"crime_id": crime_id, "location": fallback_location[0]['name']})
+    else:
+        # Last resort: link to random synthetic location
+        random_location = db.query("""
+            MATCH (l:Location {source: 'synthetic'})
+            RETURN l.name as name
+            ORDER BY rand()
+            LIMIT 1
+        """)
+        
+        if random_location:
+            db.query("""
+                MATCH (c:Crime {id: $crime_id})
+                MATCH (l:Location {name: $location})
+                MERGE (c)-[:OCCURRED_AT]->(l)
+            """, {"crime_id": crime_id, "location": random_location[0]['name']})
     
     crime_ids.append(crime_id)
     crimes_created += 1
 
-print(f"✅ Created {crimes_created} REAL crimes from Chicago API")
+print(f"✅ Created {crimes_created} REAL crimes with REALISTIC timeline data")
+
+# Show data quality stats
+severity_counts = db.query("""
+    MATCH (c:Crime)
+    RETURN c.severity as severity, count(c) as count
+    ORDER BY 
+        CASE c.severity
+            WHEN 'critical' THEN 1
+            WHEN 'high' THEN 2
+            WHEN 'medium' THEN 3
+            ELSE 4
+        END
+""")
+
+print("\n📊 Severity Distribution (Timeline-Ready):")
+for s in severity_counts:
+    icons = {'critical': '🔴', 'high': '🟠', 'medium': '🟡', 'low': '🟢'}
+    print(f"   {icons.get(s['severity'], '⚪')} {s['severity']}: {s['count']} crimes")
+
+time_sample = db.query("""
+    MATCH (c:Crime)
+    RETURN c.type as type, c.time as time
+    ORDER BY rand()
+    LIMIT 5
+""")
+
+print("\n⏰ Time Distribution Sample:")
+for t in time_sample:
+    print(f"   {t['type']}: {t['time']}")
 
 # ============================================================================
 # PART 4: ADD SYNTHETIC ENRICHMENT (Full Graph Capabilities)
@@ -572,6 +828,55 @@ integration = db.query("""
 print("\n🎯 Data Integration:")
 print(f"   Synthetic Persons → REAL Crimes: {integration['links']} links")
 
+# Timeline readiness check
+timeline_check = db.query("""
+    MATCH (c:Crime)
+    WITH c
+    WHERE c.time <> '00:00:00'
+    RETURN count(c) as varied_times
+""")[0]
+
+status_check = db.query("""
+    MATCH (c:Crime)
+    WHERE c.status IN ['open', 'under investigation', 'closed', 'solved', 'cold case']
+    RETURN count(c) as correct_status
+""")[0]
+
+# Location coverage check
+location_stats = db.query("""
+    MATCH (c:Crime)
+    OPTIONAL MATCH (c)-[:OCCURRED_AT]->(l:Location)
+    RETURN 
+        count(c) as total_crimes,
+        count(l) as crimes_with_location,
+        count(DISTINCT l) as unique_locations
+""")[0]
+
+location_coverage = (location_stats['crimes_with_location'] / location_stats['total_crimes'] * 100) if location_stats['total_crimes'] > 0 else 0
+
+print("\n⏱️ Timeline Readiness:")
+print(f"   ✅ Crimes with varied times: {timeline_check['varied_times']}")
+print(f"   ✅ Crimes with correct status: {status_check['correct_status']}")
+print(f"   ✅ Severity mapping: Intelligent (type-based)")
+
+print("\n📍 Location Coverage:")
+print(f"   ✅ Total Crimes: {location_stats['total_crimes']}")
+print(f"   ✅ Crimes with Location: {location_stats['crimes_with_location']} ({location_coverage:.1f}%)")
+print(f"   ✅ Unique Locations: {location_stats['unique_locations']}")
+
+# Show top crime hotspots
+hotspots = db.query("""
+    MATCH (c:Crime)-[:OCCURRED_AT]->(l:Location)
+    RETURN l.name as location, l.district as district, count(c) as crimes
+    ORDER BY crimes DESC
+    LIMIT 10
+""")
+
+if hotspots:
+    print("\n🔥 Top 10 Crime Hotspots:")
+    for i, spot in enumerate(hotspots, 1):
+        print(f"   {i}. {spot['location'][:50]}: {spot['crimes']} crimes (District {spot['district']})")
+
 print("\n" + "="*60)
 print("🎉 HYBRID DATA LOADED SUCCESSFULLY!")
 print("="*60)
@@ -588,6 +893,7 @@ print("   ✓ Real crime patterns (credible)")
 print("   ✓ Full graph capabilities (comprehensive)")
 print("   ✓ No privacy violations (fictional suspects)")
 print("   ✓ All demo questions work (complete system)")
+print("   ✓ Timeline-ready data (realistic distributions)")
 print("="*60)
 
 db.close()
