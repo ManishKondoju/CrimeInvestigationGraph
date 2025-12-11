@@ -1,3 +1,6 @@
+
+
+
 # app.py - Crime Investigation System with ENHANCED MODERN UI
 import streamlit as st
 from database import Database
@@ -21,7 +24,9 @@ st.set_page_config(
     initial_sidebar_state="expanded"
 )
 
-# ENHANCED MODERN CSS
+# ---------------------------
+# ENHANCED MODERN CSS (UNCHANGED)
+# ---------------------------
 st.markdown("""
 <style>
     @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap');
@@ -468,7 +473,9 @@ st.markdown("""
 </style>
 """, unsafe_allow_html=True)
 
+# ---------------------------
 # Initialize systems
+# ---------------------------
 @st.cache_resource
 def init_db():
     return Database()
@@ -486,7 +493,7 @@ graph_rag = init_graph_rag()
 network_viz = NetworkVisualization(db)
 
 # ========================================
-# SIDEBAR NAVIGATION
+# SIDEBAR NAVIGATION (includes About link)
 # ========================================
 with st.sidebar:
     # Logo/Title with gradient
@@ -498,11 +505,14 @@ with st.sidebar:
     """, unsafe_allow_html=True)
     
     st.markdown("---")
-    
     st.markdown("### 📍 Navigation")
     
-    # Navigation buttons with icons
-    if st.button("📊 Dashboard", use_container_width=True, type="primary" if st.session_state.get('page', 'Dashboard') == 'Dashboard' else "secondary"):
+    # ABOUT button
+    if st.button("ℹ️ About", use_container_width=True, type="primary" if st.session_state.get('page') == 'About' else "secondary"):
+        st.session_state.page = 'About'
+        st.rerun()
+    
+    if st.button("📊 Dashboard", use_container_width=True, type="primary" if st.session_state.get('page') == 'Dashboard' else "secondary"):
         st.session_state.page = 'Dashboard'
         st.rerun()
     
@@ -531,7 +541,6 @@ with st.sidebar:
         st.rerun()
     
     st.markdown("---")
-    
     st.markdown("### 📊 System Status")
     
     try:
@@ -565,14 +574,13 @@ with st.sidebar:
                 🗄️ Neo4j Connected
             </div>
         """, unsafe_allow_html=True)
-    except:
+    except Exception:
         st.markdown("<div class='status-badge status-offline'>🔴 System Offline</div>", unsafe_allow_html=True)
 
-# Initialize page state
+# Initialize page state (default Dashboard)
 if 'page' not in st.session_state:
-    st.session_state.page = 'Dashboard'
+    st.session_state.page = 'About'
 
-# Get current page
 current_page = st.session_state.page
 
 # ========================================
@@ -580,34 +588,25 @@ current_page = st.session_state.page
 # ========================================
 st.markdown("""
     <div style='text-align: center; padding: 40px 0 20px 0;'>
-        <h1 style='font-size: 3rem; margin-bottom: 8px;'>🕵️ CrimeGraphRAG Intelligence System</h1>
+        <h1 style='font-size: rem; margin-bottom: 8px;'>🕵️ CrimeGraphRAG Intelligence System</h1>
         <p style='color: #a0aec0; font-size: 1.1rem;'>Advanced Crime Investigation Platform powered by Knowledge Graphs & AI</p>
     </div>
 """, unsafe_allow_html=True)
 st.markdown("---")
 
 # ========================================
-# PAGE: DASHBOARD
+# PAGES
 # ========================================
 
-# ========================================
-# PAGE: DASHBOARD
-# ========================================
+# Dashboard page
 if current_page == 'Dashboard':
     render_enhanced_dashboard(db)
 
-# PAGE: AI ASSISTANT (CHAT)
-# ========================================
-# FIXED AI ASSISTANT PAGE - Equal button sizes and better text color
-# Replace your AI Assistant section with this:
-# REORGANIZED AI ASSISTANT PAGE
-# Replace your AI Assistant section (elif current_page == 'AI Assistant':) with this:
-
+# AI Assistant page
 elif current_page == 'AI Assistant':
     st.markdown("## 💬 AI Investigation Assistant")
     st.markdown("Ask questions in natural language - powered by Graph RAG")
     
-    # Check if GraphRAG is initialized
     if graph_rag is None:
         st.error("⚠️ AI Assistant requires OpenRouter API key")
         st.info("""
@@ -619,212 +618,92 @@ elif current_page == 'AI Assistant':
         """)
         st.stop()
     
-    # Initialize session state
     if 'chat_history' not in st.session_state:
         st.session_state.chat_history = []
     if 'conversation_context' not in st.session_state:
         st.session_state.conversation_context = []
     
-    # QUICK QUESTIONS AT THE TOP (MOVED HERE)
-    # -------------------------
-# Quick Actions – Auto-Sized to Largest Card
-# -------------------------
-
-  # -------------------------
-# Quick Actions (clickable cards) + Quick Questions (clickable cards)
-# -------------------------
-
-# Heading
+    # Quick Actions + Quick Questions UI (kept as in your app)
     st.markdown("<h4 style='color: #667eea; margin-top: 10px; margin-bottom: 12px; font-weight:700;'>⚡ Quick Actions</h4>", unsafe_allow_html=True)
-
-# CSS: style buttons inside the scoped wrappers to look like cards
     st.markdown("""
 <style>
-/* Scoped quick-action card style */
-.qacards .stButton>button {
-    width: 100%;
-    min-height: 100px;
-    border-radius: 12px;
-    background: linear-gradient(135deg, rgba(102,126,234,0.10), rgba(118,75,162,0.10));
-    border: 1px solid rgba(102,126,234,0.16);
-    color: #e2e8f0;
-    font-weight: 700;
-    text-align: left;
-    padding: 14px;
-    box-shadow: 0 12px 30px rgba(102,126,234,0.08);
-    display: flex;
-    flex-direction: column;
-    justify-content: center;
-    gap: 8px;
-}
-
-/* Icon + label layout when using newline in label */
-.qacards .stButton>button .stButton_label {
-    display: block;  /* ensure label wraps / centers properly */
-}
-
-/* Slight hover lift */
-.qacards .stButton>button:hover {
-    transform: translateY(-6px);
-    box-shadow: 0 22px 50px rgba(102,126,234,0.18);
-}
-
-/* Scoped recommendation card style (full text block) */
-.reccards .stButton>button {
-    width: 100%;
-    min-height: 80px;
-    border-radius: 12px;
-    background: linear-gradient(135deg, rgba(102,126,234,0.08), rgba(118,75,162,0.08));
-    border: 1px solid rgba(102,126,234,0.14);
-    color: #e2e8f0;
-    text-align:left;
-    padding: 12px;
-    box-shadow: none;
-    display:flex;
-    align-items:center;
-    justify-content:center;
-    font-weight:600;
-}
-
-/* Make the recommendation text comfortably sized */
-.reccards .stButton>button span {
-    font-size: 0.95rem;
-    line-height:1.2;
-    color: #e2e8f0;
-    text-align:left;
-}
-
-/* Grid gaps for the columns (optional visual spacing) */
+.qacards .stButton>button { width:100%; min-height:100px; border-radius:12px; background: linear-gradient(135deg, rgba(102,126,234,0.10), rgba(118,75,162,0.10)); border:1px solid rgba(102,126,234,0.16); color:#e2e8f0; font-weight:700; text-align:left; padding:14px; display:flex; flex-direction:column; justify-content:center; gap:8px; }
+.reccards .stButton>button { width:100%; min-height:80px; border-radius:12px; background: linear-gradient(135deg, rgba(102,126,234,0.08), rgba(118,75,162,0.08)); border:1px solid rgba(102,126,234,0.14); color:#e2e8f0; padding:12px; font-weight:600; display:flex; align-items:center; justify-content:center; }
 .q-grid { display:flex; gap:18px; align-items:stretch; }
-@media (max-width:780px) {
-    .q-grid { flex-direction:column; gap:12px; }
-}
+@media (max-width:780px) { .q-grid { flex-direction:column; gap:12px; } }
 </style>
-""", unsafe_allow_html=True)
+    """, unsafe_allow_html=True)
 
-# -------------------------
-# Quick Actions: 3-column grid of clickable cards (same visual style as recommendations)
-# -------------------------
     quick_actions = [
-    ("📊", "Stats", "Give me database statistics"),
-    ("🏴", "Gangs", "Which criminal organizations operate in Chicago?"),
-    ("⚠️", "Repeat Offenders", "Who are the repeat offenders with multiple crimes?"),
-    ("🔫", "Armed Suspects", "Show me armed gang members"),
-    ("📍", "Hotspots", "Which locations have the most crimes?"),
-    ("👮", "Officers", "Show all investigators and their workload")
-]
-
-# Use 3 columns like your recommendations layout
+        ("📊", "Stats", "Give me database statistics"),
+        ("🏴", "Gangs", "Which criminal organizations operate in Chicago?"),
+        ("⚠️", "Repeat Offenders", "Who are the repeat offenders with multiple crimes?"),
+        ("🔫", "Armed Suspects", "Show me armed gang members"),
+        ("📍", "Hotspots", "Which locations have the most crimes?"),
+        ("👮", "Officers", "Show all investigators and their workload")
+    ]
     qa_cols = st.columns(3, gap="large")
-
-# We open a wrapper so CSS selectors target the Streamlit buttons rendered below
     st.markdown('<div class="qacards q-grid">', unsafe_allow_html=True)
-
     for idx, (icon, label, question) in enumerate(quick_actions):
         col = qa_cols[idx % 3]
         with col:
-        # Use newline to stack icon above label visually inside the button
             btn_label = f"{icon}\n\n{label}"
             if st.button(btn_label, key=f"quick_card_{idx}", use_container_width=True):
                 st.session_state.pending_question = question
                 st.rerun()
-
     st.markdown('</div>', unsafe_allow_html=True)
 
-# -------------------------
-# Quick Questions (Recommendations) - clickable cards (no separate Ask button)
-# -------------------------
+    # Quick Questions (Recommendations)
     with st.expander("💡Quick Questions", expanded=True):
-    # determine dynamic recommendations (keeps your original logic)
         if len(st.session_state.chat_history) == 0:
             recommendations = [
-            "What are the most common crime types in the database?",
-            "Show me the top 5 criminal organizations by activity",
-            "Which districts have the highest crime rates?",
-            "Find connections between gang members",
-            "What weapons are most commonly used in crimes?",
-            "Show me unsolved cases with critical evidence"
-        ]
+                "What are the most common crime types in the database?",
+                "Show me the top 5 criminal organizations by activity",
+                "Which districts have the highest crime rates?",
+                "Find connections between gang members",
+                "What weapons are most commonly used in crimes?",
+                "Show me unsolved cases with critical evidence"
+            ]
         elif any("gang" in msg["content"].lower() for msg in st.session_state.chat_history):
             recommendations = [
-            "Which gang members are armed?",
-            "Show connections between different gangs",
-            "Find the most influential gang members",
-            "Which gangs operate in multiple districts?",
-            "Show gang-related violent crimes",
-            "Find rival gang conflicts"
-        ]
-        elif any("location" in msg["content"].lower() or "district" in msg["content"].lower() 
-             for msg in st.session_state.chat_history):
-            recommendations = [
-            "Show crime patterns by time of day",
-            "Which locations are crime hotspots at night?",
-            "Find nearby crimes to a specific location",
-            "Show district-wise crime severity",
-            "Which areas have the most unsolved cases?",
-            "Find patterns in location-based crimes"
-        ]
-        elif any("suspect" in msg["content"].lower() or "person" in msg["content"].lower() 
-             for msg in st.session_state.chat_history):
-            recommendations = [
-            "Show suspects with multiple crimes",
-            "Find armed suspects in the database",
-            "Which suspects have connections to gangs?",
-            "Show suspects with outstanding warrants",
-            "Find suspects linked to unsolved cases",
-            "Show suspect relationship networks"
-        ]
-        elif any("evidence" in msg["content"].lower() for msg in st.session_state.chat_history):
-            recommendations = [
-            "Show critical evidence in unsolved cases",
-            "Find cases with DNA evidence",
-            "Which cases have video surveillance?",
-            "Show evidence chain of custody issues",
-            "Find cases with witness testimonies",
-            "Show forensic evidence patterns"
-        ]
+                "Which gang members are armed?",
+                "Show connections between different gangs",
+                "Find the most influential gang members",
+                "Which gangs operate in multiple districts?",
+                "Show gang-related violent crimes",
+                "Find rival gang conflicts"
+            ]
         else:
             recommendations = [
-            "Show me recent high-severity crimes",
-            "Find suspects with multiple aliases",
-            "Which investigators have the best solve rates?",
-            "Show evidence connections across cases",
-            "Find potential witness relationships",
-            "Identify crime pattern clusters"
-        ]
-
-    # Display recommendations in a 3-column grid as clickable cards
+                "Show me recent high-severity crimes",
+                "Find suspects with multiple aliases",
+                "Which investigators have the best solve rates?",
+                "Show evidence connections across cases",
+                "Find potential witness relationships",
+                "Identify crime pattern clusters"
+            ]
         rec_cols = st.columns(3, gap="large")
         st.markdown('<div class="reccards q-grid">', unsafe_allow_html=True)
-
         for idx, recommendation in enumerate(recommendations):
             col = rec_cols[idx % 3]
             with col:
-            # Use the recommendation text directly as the button label
-            # Wrap text in a <span> so the CSS .reccards .stButton>button span rule can style it
                 label_html = recommendation.replace('"', '\\"')
-            # st.button doesn't accept HTML in label, but the CSS styles the button's text - newline works to wrap
                 if st.button(label_html, key=f"rec_card_{idx}", use_container_width=True):
                     st.session_state.pending_question = recommendation
                     st.rerun()
-
-    st.markdown('</div>', unsafe_allow_html=True)
+        st.markdown('</div>', unsafe_allow_html=True)
 
     st.markdown("---")
-    
-    # Handle pending question
+    # Handle pending quick question
     if 'pending_question' in st.session_state and st.session_state.pending_question:
         question = st.session_state.pending_question
         st.session_state.pending_question = None
-        
         st.session_state.chat_history.append({"role": "user", "content": question})
-        
         with st.spinner("🔍 Analyzing..."):
             result = graph_rag.ask_with_context(question, st.session_state.conversation_context)
             answer = result['answer']
             cypher = result.get('cypher_queries', [])
             context_data = result.get('context', {})
-            
             st.session_state.conversation_context.append({"role": "user", "content": question})
             st.session_state.conversation_context.append({"role": "assistant", "content": answer})
             st.session_state.chat_history.append({
@@ -833,69 +712,56 @@ elif current_page == 'AI Assistant':
                 "cypher": cypher,
                 "context": context_data
             })
-        
         st.rerun()
-    
+
     # Display chat history
     for message in st.session_state.chat_history:
         with st.chat_message(message["role"]):
             st.markdown(message["content"])
-            
-            # Cypher queries dropdown
             if message["role"] == "assistant" and "cypher" in message and message["cypher"]:
                 with st.expander("🔧 View Cypher Queries", expanded=False):
                     st.markdown("**Graph queries executed:**")
                     st.caption("💡 Test these in Neo4j Browser: http://localhost:7474")
                     st.markdown("---")
-                    
                     for idx, (name, query) in enumerate(message["cypher"], 1):
                         st.markdown(f"**{idx}. {name}**")
                         st.code(query, language="cypher")
                         if idx < len(message["cypher"]):
                             st.markdown("---")
-                    
-                    # Raw data
                     if "context" in message and message["context"]:
                         with st.expander("📊 Raw Data", expanded=False):
                             for key, value in message["context"].items():
                                 if value and value != {'error': 'Could not fetch stats'}:
                                     st.markdown(f"**{key.replace('_', ' ').title()}:**")
                                     st.json(value[:3] if isinstance(value, list) else value)
-    
+
     # Chat input
     if prompt := st.chat_input("Ask about crimes, suspects, gangs, evidence..."):
         st.session_state.chat_history.append({"role": "user", "content": prompt})
-        
         with st.chat_message("user"):
             st.markdown(prompt)
-        
         with st.chat_message("assistant"):
             with st.spinner("🔍 Investigating..."):
                 result = graph_rag.ask_with_context(prompt, st.session_state.conversation_context)
                 answer = result['answer']
                 cypher = result.get('cypher_queries', [])
                 context_data = result.get('context', {})
-                
                 st.markdown(answer)
-                
                 if cypher:
                     with st.expander("🔧 View Cypher Queries", expanded=False):
                         st.markdown("**Graph queries executed:**")
                         st.caption("💡 Test in Neo4j Browser: http://localhost:7474")
                         st.markdown("---")
-                        
                         for idx, (name, query) in enumerate(cypher, 1):
                             st.markdown(f"**{idx}. {name}**")
                             st.code(query, language="cypher")
                             if idx < len(cypher):
                                 st.markdown("---")
-                        
                         with st.expander("📊 Raw Data", expanded=False):
                             for key, value in context_data.items():
                                 if value and value != {'error': 'Could not fetch stats'}:
                                     st.markdown(f"**{key.replace('_', ' ').title()}:**")
                                     st.json(value[:3] if isinstance(value, list) else value)
-                
                 st.session_state.conversation_context.append({"role": "user", "content": prompt})
                 st.session_state.conversation_context.append({"role": "assistant", "content": answer})
                 st.session_state.chat_history.append({
@@ -904,53 +770,187 @@ elif current_page == 'AI Assistant':
                     "cypher": cypher,
                     "context": context_data
                 })
-    
+
     # Controls
     col1, col2 = st.columns([1, 5])
     with col1:
         if st.button("🗑️ Clear", use_container_width=True):
             st.session_state.chat_history = []
             st.session_state.conversation_context = []
-            st.rerun()  # close wrapper
+            st.rerun()
 
-    
-
-# ========================================
-# PAGE: GRAPH ALGORITHMS
-# ========================================
+# Graph Algorithms page
 elif current_page == 'Graph Algorithms':
     render_graph_algorithms_page(db)
 
-# ========================================
-# PAGE: NETWORK VISUALIZATION
-# ========================================
+# Network Visualization page
 elif current_page == 'Network Visualization':
     st.markdown("## 🕸️ Criminal Network Visualization")
     st.markdown("Interactive graph visualization of criminal connections")
     st.markdown("---")
     network_viz.render()
 
-# ========================================
-# PAGE: GEOGRAPHIC MAPPING
-# ========================================
+# Geographic Mapping page
 elif current_page == 'Geographic Mapping':
     render_geographic_page(db)
 
-# ========================================
-# PAGE: TIMELINE ANALYSIS
-# ========================================
+# Timeline Analysis page
 elif current_page == 'Timeline Analysis':
     render_timeline_interface(db)
 
-# ========================================
-# PAGE: GRAPH SCHEMA
-# ========================================
+# Graph Schema page
 elif current_page == 'Graph Schema':
     render_schema_page(db)
 
-# ========================================
-# DEFAULT PAGE
-# ========================================
+# ---------------------------
+# ABOUT page: detailed project report
+# ---------------------------
+elif current_page == 'About':
+    st.markdown("## ℹ️Project Overview")
+    st.markdown("---")
+
+    # INTRO & GOALS
+    st.markdown("### 1. Project Introduction")
+    st.markdown("""
+CrimeGraphRAG is a prototype investigative platform that pairs a Neo4j knowledge graph with Retrieval-Augmented Generation driven by large language models (GraphRAG).
+It allows investigators and analysts to ask natural-language questions and receive verifiable, contextual insights grounded in the graph (Cypher) results.
+The system focuses on explainability, multi-hop relational reasoning, and interactive visualization.
+    """, unsafe_allow_html=True)
+
+    st.markdown("### 2. Project Goals")
+    st.markdown("""
+- Model real-world crime data in a graph to surface hidden relationships (repeat offenders, cross-case links, hotspots).  
+- Let users query the graph using natural language via a GraphRAG pipeline (LLM + Cypher grounding).  
+- Provide an interactive Streamlit dashboard for visualization (network, geography, timeline, analytics).  
+- Produce auditable answers by showing generated Cypher queries + raw subgraph context.  
+    """, unsafe_allow_html=True)
+
+    # ARCHITECTURE
+    st.markdown("### 3. Architecture (High-level)")
+    st.markdown("""
+**Layers & Flow**
+1. **Data Ingestion** — Chicago Crime API / CSV ingestion -> ETL -> Neo4j import.  
+2. **Graph Database** — Neo4j holds entities and relationships (Person, Crime, Location, Officer, Evidence, Area).  
+3. **GraphRAG Module** — LLM interprets the user query, constructs Cypher retrieval queries, Neo4j returns subgraph, system encodes subgraph -> LLM generates final explanation.  
+4. **Backend** — Python service that orchestrates Neo4j driver, GraphRAG logic, and API endpoints (if any).  
+5. **Frontend** — Streamlit UI (this app) with modular pages: Dashboard, AI Assistant, Network Viz, Geographic Mapping, Timeline, Graph Schema, Graph Algorithms, About.
+    """, unsafe_allow_html=True)
+
+    # FEATURES
+    st.markdown("### 4. Features (as implemented / in-app)")
+    st.markdown("""
+- **Conversational AI Assistant** — Multi-turn, context-preserving query interface that shows the Cypher queries used.  
+- **Graph Schema Visualizer** — Inspect node labels, properties, and relationships.  
+- **Network Visualization** — Interactive network (PyVis/NetworkX integration via `network_viz`).  
+- **Geographic Mapping** — Plot crimes on maps (latitude/longitude clustering, hotspots).  
+- **Timeline Analysis** — Temporal views of incidents and trends.  
+- **Graph Algorithms Suite** — Run centrality, community detection, shortest paths (accessible under Graph Algorithms).  
+- **Metrics & Health** — Sidebar system status and node/relationship counts.  
+- **Auditable Answers** — Expand to view generated Cypher + raw results used to form the LLM answer.
+    """, unsafe_allow_html=True)
+
+    # DATA SOURCES
+    st.markdown("### 5. Data Sources")
+    st.markdown("""
+CrimeGraphRAG uses a **hybrid dataset** combining real-world public data and controlled synthetic entities to enable realistic crime-investigation analysis without exposing sensitive information.
+
+#### **🔹 Primary Dataset (Real Data)**
+- **City of Chicago Crime Dataset (2001–Present)**
+- Public API Endpoint:  
+  `https://data.cityofchicago.org/resource/ijzp-q8t2.json`
+- Provides crime types, dates, locations, arrest info, community areas, and coordinates.
+
+#### **🔹 Secondary Dataset (Custom / Synthetic Data)**
+To model suspects, officers, evidence, gangs, and relationships *not available* in public datasets, customized synthetic data was generated:
+- **Officers and Investigators**
+- **Suspects / Persons of Interest**
+- **Organizations & Gang Structures**
+- **Evidence Metadata**
+- **Inter-person relationships** (KNOWS, FAMILY_REL, ASSOCIATED_WITH)
+- **Crime linkage patterns**
+
+This hybrid approach ensures:
+- Realistic patterns from actual Chicago crime incidents  
+- Complete graph structures for relationship reasoning  
+- No exposure of private or sensitive identities  
+"""
+, unsafe_allow_html=True)
+
+
+    # GRAPH DESIGN
+    st.markdown("### 6. Graph Design (summary)")
+    st.markdown("""
+**Nodes (examples):** `Crime`, `Person`, `Officer`, `Location`, `Area`, `Evidence`, `Organization`  
+**Typical properties:** `Crime.id`, `Crime.type`, `Crime.date`, `Location.lat`, `Location.lon`, `Person.name`, `Officer.badge_no`  
+**Relationships (examples):**  
+- `(:Crime)-[:OCCURRED_AT]->(:Location)`  
+- `(:Crime)-[:INVESTIGATED_BY]->(:Officer)`  
+- `(:Person)-[:PARTY_TO]->(:Crime)`  
+- `(:Person)-[:KNOWS|FAMILY_REL]->(:Person)`  
+- `(:Location)-[:PART_OF]->(:Area)`
+    """, unsafe_allow_html=True)
+
+    # METHODOLOGY / GRAGRAG PIPELINE
+    st.markdown("### 7. GraphRAG Methodology (pipeline)")
+    st.markdown("""
+1. **Query Understanding:** LLM parses user query and identifies intent and entities.  
+2. **Subgraph Retrieval:** System builds parameterized Cypher queries (possibly multiple) and fetches a compact subgraph.  
+3. **Graph-to-Text Encoding:** Convert nodes/edges into structured textual context (e.g., "Person A -> MEMBER_OF -> Org X; Person A -> PARTY_TO -> Crime #123 on 2024-05-12").  
+4. **LLM Reasoning (RAG):** Pass the structured context to the LLM to synthesize a human-readable explanation and recommended next steps.  
+5. **Visualization:** Show the returned subgraph visually and provide the executed Cypher queries for transparency.
+    """, unsafe_allow_html=True)
+
+    # EXAMPLE QUERIES
+    st.markdown("### 8. Example User Queries")
+    st.markdown("""
+- “Who are the suspects connected to ongoing drug investigations near downtown Chicago?”  
+- “Which officers have investigated the most burglary cases in 2024?”  
+- “Summarize relationships among repeat offenders in assault cases.”  
+- “Find the top 5 crime hotspots by community area and type.”
+    """, unsafe_allow_html=True)
+
+    # OUTCOMES
+    st.markdown("### 9. Expected Outcomes")
+    st.markdown("""
+- A functional GraphRAG-based Crime Knowledge Graph prototype.  
+- Natural-language query interface powered by OpenRouter-hosted LLM.  
+- Interactive visualizations (network maps, geospatial hotspots, timelines).  
+- Auditable and verifiable answers showing Cypher and raw subgraph data.  
+- A modular codebase suitable for extension to fraud, cybersecurity, or insurance networks.
+    """, unsafe_allow_html=True)
+
+    # FUTURE ENHANCEMENTS
+    st.markdown("### 10. Future Enhancements")
+    st.markdown("""
+- **RBAC & Authentication** — Enforce role-based access (Detective, Analyst, Supervisor) before showing sensitive data.  
+- **Graph Embeddings (Neo4j GDS)** — Combine vector similarity with graph retrieval for hybrid RAG.  
+- **Temporal Graphs & Causal Analysis** — Add OCCURRED_AFTER edges and causal inference layers.  
+- **Real-time Ingestion** — Stream new incidents into the graph for near real-time analytics.  
+- **Explainability Modules** — Step-by-step LLM reasoning trace and provenance.
+    """, unsafe_allow_html=True)
+
+    # TECH STACK & TOOLS
+    st.markdown("### 11. Tools & Tech Stack")
+    st.markdown("""
+- **Database:** Neo4j (Aura or self-managed).  
+- **Backend:** Python (Neo4j Driver, Requests, ETL scripts).  
+- **LLM API:** OpenRouter (LLaMA-3 / Mistral recommended).  
+- **Frontend:** Streamlit (this application).  
+- **Visualization:** NetworkX, PyVis, Plotly, Mapbox/Leaflet (for geo).  
+- **Data Sources:** City of Chicago Crime API, FBI APIs, synthetic data.  
+- **Deployment:** Containerized services (.env for secrets), optional Cloud or Neo4j Aura.
+    """, unsafe_allow_html=True)
+
+
+    # CONTACT / ACKNOWLEDGEMENT
+    st.markdown("### 12. Contact & Acknowledgements")
+    st.markdown("""
+**Project:** CrimeGraphRAG — Course: DAMG 7374 - Knowledge Graphs with GenAI (Northeastern University)  
+**Authors / Team:** Yashasvi Nagar, Nancy Taswala, Manish Kumar Kondoju  
+**Acknowledgement:** This prototype demonstrates architectural concepts for educational purposes and is not for operational policing without appropriate approvals, privacy safeguards, and legal review.
+    """, unsafe_allow_html=True)
+
+# Default / fallback: set dashboard
 else:
     st.session_state.page = 'Dashboard'
     st.rerun()
