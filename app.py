@@ -532,9 +532,9 @@ with st.sidebar:
         st.session_state.page = 'Geographic Mapping'
         st.rerun()
     
-    if st.button("⏱️ Timeline Analysis", use_container_width=True, type="primary" if st.session_state.get('page') == 'Timeline Analysis' else "secondary"):
-        st.session_state.page = 'Timeline Analysis'
-        st.rerun()
+    # if st.button("⏱️ Timeline Analysis", use_container_width=True, type="primary" if st.session_state.get('page') == 'Timeline Analysis' else "secondary"):
+    #     st.session_state.page = 'Timeline Analysis'
+    #     st.rerun()
     
     if st.button("📐 Graph Schema", use_container_width=True, type="primary" if st.session_state.get('page') == 'Graph Schema' else "secondary"):
         st.session_state.page = 'Graph Schema'
@@ -795,8 +795,8 @@ elif current_page == 'Geographic Mapping':
     render_geographic_page(db)
 
 # Timeline Analysis page
-elif current_page == 'Timeline Analysis':
-    render_timeline_interface(db)
+# elif current_page == 'Timeline Analysis':
+#     render_timeline_interface(db)
 
 # Graph Schema page
 elif current_page == 'Graph Schema':
@@ -835,6 +835,21 @@ The system focuses on explainability, multi-hop relational reasoning, and intera
 4. **Backend** — Python service that orchestrates Neo4j driver, GraphRAG logic, and API endpoints (if any).  
 5. **Frontend** — Streamlit UI (this app) with modular pages: Dashboard, AI Assistant, Network Viz, Geographic Mapping, Timeline, Graph Schema, Graph Algorithms, About.
     """, unsafe_allow_html=True)
+    import base64
+
+    with open(r"D:\CrimeInvestigationGraph-main\architecture.png", "rb") as f:
+        img_bytes = f.read()
+
+    img_b64 = base64.b64encode(img_bytes).decode()
+
+    st.markdown(f"""
+<div style="text-align:center;">
+    <img src="data:image/png;base64,{img_b64}"
+         alt="Architecture Diagram" width="80%">
+    <p style="color: gray; font-size: 0.9em;">CrimeGraphRAG Architecture Overview</p>
+</div>
+""", unsafe_allow_html=True)
+
 
     # FEATURES
     st.markdown("### 4. Features (as implemented / in-app)")
