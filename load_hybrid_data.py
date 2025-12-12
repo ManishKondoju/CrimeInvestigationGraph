@@ -162,8 +162,8 @@ for crime in real_crimes:
                 'name': block,
                 'lat': float(crime['latitude']),
                 'lon': float(crime['longitude']),
-                'district': crime.get('district', 'Unknown'),
-                'beat': crime.get('beat', 'Unknown')
+                'district': str(crime.get('district', 'Unknown')),  # Ensure string
+                'beat': str(crime.get('beat', 'Unknown'))  # Ensure string
             }
             location_count += 1
 
@@ -359,6 +359,72 @@ for crime in real_crimes[:500]:
     crimes_created += 1
 
 print(f"✅ Created {crimes_created} REAL crimes with REALISTIC timeline data")
+
+# Add synthetic crimes for geographic diversity (distributed across all districts)
+print("\n🎨 Adding synthetic crimes for geographic coverage...")
+
+synthetic_crime_count = 0
+
+# Get all synthetic locations
+synthetic_locs = db.query("""
+    MATCH (l:Location {source: 'synthetic'})
+    RETURN l.name as name, l.district as district
+""")
+
+if synthetic_locs:
+    # Add 2-8 synthetic crimes to each synthetic location for coverage
+    for loc in synthetic_locs:
+        num_synthetic = random.randint(2, 8)
+        
+        for _ in range(num_synthetic):
+            crime_type = random.choice([
+                'THEFT', 'BATTERY', 'CRIMINAL DAMAGE', 'ASSAULT', 
+                'BURGLARY', 'MOTOR VEHICLE THEFT', 'ROBBERY', 'NARCOTICS'
+            ])
+            
+            severity = get_severity(crime_type)
+            crime_time = get_realistic_time(crime_type)
+            status = get_status(random.choice([True, False]), severity)
+            
+            synthetic_crime_id = f"SYN{synthetic_crime_count:04d}"
+            
+            db.query("""
+                CREATE (c:Crime {
+                    id: $id,
+                    type: $type,
+                    date: $date,
+                    time: $time,
+                    case_number: $case_number,
+                    description: $description,
+                    arrest_made: $arrest,
+                    severity: $severity,
+                    status: $status,
+                    source: 'synthetic_geographic'
+                })
+            """, {
+                "id": synthetic_crime_id,
+                "type": crime_type,
+                "date": f"2024-{random.randint(1, 11):02d}-{random.randint(1, 28):02d}",
+                "time": crime_time,
+                "case_number": f"SYN-2024-{synthetic_crime_count:06d}",
+                "description": f"Synthetic {crime_type.lower()} for geographic coverage",
+                "arrest": random.choice([True, False]),
+                "severity": severity,
+                "status": status
+            })
+            
+            # Link to synthetic location
+            db.query("""
+                MATCH (c:Crime {id: $crime_id})
+                MATCH (l:Location {name: $location})
+                MERGE (c)-[:OCCURRED_AT]->(l)
+            """, {"crime_id": synthetic_crime_id, "location": loc['name']})
+            
+            crime_ids.append(synthetic_crime_id)
+            synthetic_crime_count += 1
+    
+    print(f"  ✅ Added {synthetic_crime_count} synthetic crimes for geographic coverage")
+    print(f"  📊 Total crimes: {crimes_created} real + {synthetic_crime_count} synthetic = {crimes_created + synthetic_crime_count}")
 
 # Show data quality stats
 severity_counts = db.query("""
@@ -863,6 +929,32 @@ print("\n📍 Location Coverage:")
 print(f"   ✅ Total Crimes: {location_stats['total_crimes']}")
 print(f"   ✅ Crimes with Location: {location_stats['crimes_with_location']} ({location_coverage:.1f}%)")
 print(f"   ✅ Unique Locations: {location_stats['unique_locations']}")
+
+# Show source breakdown
+source_breakdown = db.query("""
+    MATCH (c:Crime)
+    RETURN c.source as source, count(c) as count
+    ORDER BY count DESC
+""")
+
+if source_breakdown:
+    print("\n📊 Crime Data Sources:")
+    for src in source_breakdown:
+        print(f"   • {src['source']}: {src['count']} crimes")
+
+# Show geographic distribution
+geo_dist = db.query("""
+    MATCH (c:Crime)-[:OCCURRED_AT]->(l:Location)
+    WHERE l.latitude IS NOT NULL
+    RETURN l.district as district, count(c) as crimes
+    ORDER BY crimes DESC
+    LIMIT 10
+""")
+
+if geo_dist:
+    print("\n🗺️ Geographic Distribution (Top 10 Districts):")
+    for d in geo_dist:
+        print(f"   District {d['district']}: {d['crimes']} crimes")
 
 # Show top crime hotspots
 hotspots = db.query("""

@@ -1,3 +1,4 @@
+# graph_rag_enhanced.py - KG-Aware Graph RAG
 import config
 from database import Database
 import json
@@ -8,7 +9,6 @@ class GraphRAG:
         self.db = Database()
         self.model = config.MODEL_NAME
         
-        # Try to initialize OpenAI (works with OpenRouter)
         try:
             from openai import OpenAI
             self.client = OpenAI(
@@ -22,414 +22,156 @@ class GraphRAG:
             self.use_llm = False
     
     def ask(self, question):
-        """Original ask method for backward compatibility"""
         return self.ask_with_context(question, [])
     
     def ask_with_context(self, question, conversation_history):
-        """
-        ENHANCED: Ask with conversation context for follow-up questions
-        
-        Args:
-            question: Current user question
-            conversation_history: List of previous {role, content} messages
-        """
         print(f"\n🔍 Processing question: {question}")
         
-        # Step 1: RETRIEVE - Get ALL relevant data
-        context, cypher_queries = self._smart_retrieve(question, conversation_history)
+        # RETRIEVE with KG-awareness
+        context, cypher_queries = self._kg_aware_retrieve(question, conversation_history)
         
         print(f"✅ Retrieved {len(context)} context keys")
-        for key in context.keys():
-            if context[key]:
-                data_len = len(context[key]) if isinstance(context[key], list) else 'stats'
-                print(f"  ✓ {key}: {data_len}")
         
-        # Step 2: GENERATE answer with conversation awareness
+        # GENERATE
+        answer = ""
+        
         if self.use_llm:
             try:
-                answer = self._generate_with_llm_conversational(
-                    question, 
-                    context, 
-                    conversation_history
-                )
-                print("✅ LLM generated response")
+                answer = self._generate_with_llm(question, context, conversation_history)
+                print(f"✅ LLM generated {len(answer)} chars")
+                
+                if not answer or len(answer.strip()) < 10:
+                    answer = self._generate_fallback(question, context)
             except Exception as e:
                 print(f"⚠️ LLM failed: {e}")
                 answer = self._generate_fallback(question, context)
         else:
             answer = self._generate_fallback(question, context)
         
+        # Final validation
+        if not answer or len(answer.strip()) < 10:
+            answer = self._generate_emergency_fallback(context)
+        
         return {
             'answer': answer,
             'sources': list(context.keys()),
-            'cypher_queries': cypher_queries,  # NEW: Return Cypher queries
-            'context': context  # NEW: Return full context for inspection
+            'cypher_queries': cypher_queries,
+            'context': context
         }
     
-    def _smart_retrieve(self, question, conversation_history):
-        """ENHANCED retrieval with conversation awareness"""
+    def _kg_aware_retrieve(self, question, conversation_history):
+        """ENHANCED: Knowledge Graph-aware retrieval"""
         context = {}
-        cypher_queries = []  # Track all executed queries
+        cypher_queries = []
         q = question.lower()
         
-        print(f"📋 Analyzing question: '{question}'")
-        
-        # Check conversation history for entity references
-        entities_from_history = self._extract_entities_from_history(conversation_history)
-        
-        # Extract entities from question
-        locations = self._extract_locations(question)
-        crime_types = self._extract_crime_types(question)
+        # Extract entities
         person_names = self._extract_person_names(question)
-        organizations = self._extract_organizations(question)
         
-        print(f"🔎 Found entities - Locations: {locations}, Persons: {person_names}, Orgs: {organizations}")
-        
-        # Merge with historical entities for follow-up questions
-        if entities_from_history:
-            locations.extend(entities_from_history.get('locations', []))
-            person_names.extend(entities_from_history.get('persons', []))
-            organizations.extend(entities_from_history.get('organizations', []))
-        
-        # Remove duplicates
-        locations = list(set(locations))
-        person_names = list(set(person_names))
-        organizations = list(set(organizations))
-        
-        # ALWAYS get basic stats
+        # Always get basic stats
         try:
             query = "MATCH (c:Crime) RETURN count(c) as n"
-            cypher_queries.append(("Database Stats - Crimes", query))
+            cypher_queries.append(("Database Stats", query))
             
             context['database_stats'] = {
                 'total_crimes': self.db.query(query)[0]['n'],
-                'total_persons': self.db.query("MATCH (p:Person) RETURN count(p) as n")[0]['n'],
-                'total_locations': self.db.query("MATCH (l:Location) RETURN count(l) as n")[0]['n'],
-                'total_organizations': self.db.query("MATCH (o:Organization) RETURN count(o) as n")[0]['n'],
-                'total_evidence': self.db.query("MATCH (e:Evidence) RETURN count(e) as n")[0]['n']
+                'total_persons': self.db.query("MATCH (p:Person) RETURN count(p) as n")[0]['n']
             }
-            
-            cypher_queries.append(("Database Stats - All Counts", """
-MATCH (c:Crime) WITH count(c) as crimes
-MATCH (p:Person) WITH crimes, count(p) as persons
-MATCH (l:Location) WITH crimes, persons, count(l) as locations
-MATCH (o:Organization) WITH crimes, persons, locations, count(o) as orgs
-MATCH (e:Evidence)
-RETURN crimes, persons, locations, orgs, count(e) as evidence
-            """.strip()))
-            
-            print(f"📊 Stats: {context['database_stats']}")
         except Exception as e:
-            print(f"❌ Error fetching stats: {e}")
-            context['database_stats'] = {'error': 'Could not fetch stats'}
+            print(f"❌ Stats error: {e}")
         
-        # ========== ORGANIZATION QUERIES ==========
-        if any(w in q for w in ['organization', 'organisations', 'gang', 'crew', 'syndicate', 'cartel', 'ring', 'operate', 'operating']) or organizations:
-            print("🏢 Fetching organizations...")
-            try:
-                org_query = """
-MATCH (o:Organization)
-RETURN o.name as name, o.type as type, 
-       o.territory as territory, o.members_count as members,
-       o.activity_level as activity
-ORDER BY o.members_count DESC
-                """.strip()
+        # ========================================
+        # KNOWLEDGE GRAPH SPECIFIC QUERIES
+        # ========================================
+        
+        # 1. MULTI-HOP / N-DEGREE QUERIES
+        if any(phrase in q for phrase in ['within', 'degrees of', 'degrees from', 'connections of', 'network of']):
+            if person_names:
+                name = person_names[0]
                 
-                cypher_queries.append(("Organizations", org_query))
-                orgs = self.db.query(org_query)
-                context['all_organizations'] = orgs
-                print(f"✅ Found {len(orgs)} organizations")
+                # Check if person exists first
+                check_query = f"MATCH (p:Person) WHERE p.name =~ '(?i).*{re.escape(name)}.*' RETURN p.name as name LIMIT 1"
+                person_check = self.db.query(check_query)
                 
-                members_query = """
-MATCH (p:Person)-[r:MEMBER_OF]->(o:Organization)
-RETURN o.name as organization, p.name as member,
-       p.age as age, r.rank as rank
-ORDER BY o.name, r.rank
-LIMIT 50
-                """.strip()
+                if person_check:
+                    actual_name = person_check[0]['name']
+                    
+                    # 1-degree connections
+                    degree1_query = f"""MATCH (p:Person {{name: '{actual_name}'}})-[:KNOWS]-(connected:Person)
+RETURN DISTINCT connected.name as name, connected.age as age
+LIMIT 30"""
+                    
+                    cypher_queries.append(("1-Degree Connections", degree1_query))
+                    degree1 = self.db.query(degree1_query)
+                    context['degree_1_connections'] = degree1
+                    
+                    # 2-degree connections
+                    degree2_query = f"""MATCH (p:Person {{name: '{actual_name}'}})-[:KNOWS*2]-(connected:Person)
+WHERE connected.name <> '{actual_name}'
+RETURN DISTINCT connected.name as name, connected.age as age
+LIMIT 50"""
+                    
+                    cypher_queries.append(("2-Degree Connections", degree2_query))
+                    degree2 = self.db.query(degree2_query)
+                    context['degree_2_connections'] = degree2
+                    
+                    # Get their gang memberships
+                    gang_query = f"""MATCH (p:Person {{name: '{actual_name}'}})-[:KNOWS*1..2]-(connected:Person)
+OPTIONAL MATCH (connected)-[:MEMBER_OF]->(o:Organization)
+RETURN DISTINCT connected.name as name, o.name as gang
+LIMIT 50"""
+                    
+                    cypher_queries.append(("Network Gang Affiliations", gang_query))
+                    context['network_gangs'] = self.db.query(gang_query)
+                    
+                    print(f"✅ Found {len(degree1)} 1-degree, {len(degree2)} 2-degree connections")
+        
+        # 2. PATTERN MATCHING - Working Together
+        if any(phrase in q for phrase in ['together', 'same crime', 'collaborated', 'co-offender', 'shared crime']):
+            
+            # Crimes committed together
+            collab_query = """MATCH (p1:Person)-[:PARTY_TO]->(c:Crime)<-[:PARTY_TO]-(p2:Person)
+WHERE p1.name < p2.name
+WITH p1, p2, count(DISTINCT c) as shared_crimes, collect(DISTINCT c.type) as crime_types
+WHERE shared_crimes >= 1
+OPTIONAL MATCH (p1)-[:MEMBER_OF]->(o1:Organization)
+OPTIONAL MATCH (p2)-[:MEMBER_OF]->(o2:Organization)
+RETURN p1.name as person1, 
+       p2.name as person2,
+       shared_crimes,
+       crime_types,
+       o1.name as gang1,
+       o2.name as gang2,
+       CASE WHEN o1.name = o2.name OR (o1 IS NULL AND o2 IS NULL) THEN 'same' ELSE 'different' END as gang_status
+ORDER BY shared_crimes DESC
+LIMIT 20"""
+            
+            cypher_queries.append(("Crime Collaboration Patterns", collab_query))
+            context['collaborations'] = self.db.query(collab_query)
+            
+            # Filter for different gangs if specified
+            if 'different gang' in q or "aren't in the same gang" in q or "not in same gang" in q:
+                different_gang_query = """MATCH (p1:Person)-[:PARTY_TO]->(c:Crime)<-[:PARTY_TO]-(p2:Person)
+WHERE p1.name < p2.name
+MATCH (p1)-[:MEMBER_OF]->(o1:Organization)
+MATCH (p2)-[:MEMBER_OF]->(o2:Organization)
+WHERE o1.name <> o2.name
+WITH p1, p2, o1, o2, count(DISTINCT c) as shared_crimes, collect(DISTINCT c.type) as crime_types
+RETURN p1.name as person1,
+       p2.name as person2,
+       o1.name as gang1,
+       o2.name as gang2,
+       shared_crimes,
+       crime_types
+ORDER BY shared_crimes DESC
+LIMIT 15"""
                 
-                cypher_queries.append(("Organization Members", members_query))
-                members = self.db.query(members_query)
-                context['organization_members'] = members
-                print(f"✅ Found {len(members)} organization members")
-                
-            except Exception as e:
-                print(f"❌ Error fetching organizations: {e}")
+                cypher_queries.append(("Different Gangs - Same Crimes", different_gang_query))
+                context['cross_gang_collaboration'] = self.db.query(different_gang_query)
         
-        # Specific organization query
-        if organizations:
-            for org in organizations[:3]:
-                try:
-                    # Escape special characters for regex
-                    escaped_org = re.escape(org)
-                    
-                    print(f"🔍 Fetching crimes for organization: {org}")
-                    org_crimes = self.db.query(f"""
-                        MATCH (p:Person)-[:MEMBER_OF]->(o:Organization)
-                        WHERE o.name =~ '(?i).*{escaped_org}.*'
-                        MATCH (p)-[:PARTY_TO]->(c:Crime)-[:OCCURRED_AT]->(l:Location)
-                        RETURN c.type as crime_type, c.date as date,
-                               l.name as location, p.name as member
-                        ORDER BY c.date DESC
-                        LIMIT 30
-                    """)
-                    
-                    if org_crimes:
-                        context[f'org_{org}_crimes'] = org_crimes
-                        print(f"✅ Found {len(org_crimes)} crimes for {org}")
-                except Exception as e:
-                    print(f"❌ Error fetching {org} crimes: {e}")
-        
-        # ========== EVIDENCE QUERIES ==========
-        if any(w in q for w in ['evidence', 'proof', 'forensic', 'dna', 'fingerprint']):
-            try:
-                print("🔬 Fetching evidence...")
-                context['all_evidence'] = self.db.query("""
-                    MATCH (e:Evidence)
-                    RETURN e.id as id, e.type as type, e.description as description,
-                           e.significance as significance, e.verified as verified
-                    ORDER BY 
-                        CASE e.significance 
-                            WHEN 'critical' THEN 1
-                            WHEN 'high' THEN 2
-                            WHEN 'medium' THEN 3
-                            ELSE 4
-                        END
-                    LIMIT 30
-                """)
-                
-                context['evidence_person_links'] = self.db.query("""
-                    MATCH (e:Evidence)-[r:LINKS_TO]->(p:Person)
-                    RETURN e.id as evidence_id, e.description as evidence,
-                           p.name as suspect, r.confidence as confidence
-                    ORDER BY r.confidence DESC
-                    LIMIT 30
-                """)
-                print("✅ Evidence fetched")
-            except Exception as e:
-                print(f"❌ Error fetching evidence: {e}")
-        
-        # ========== INVESTIGATOR QUERIES ==========
-        if any(w in q for w in ['investigator', 'detective', 'officer', 'assigned']):
-            try:
-                print("👮 Fetching investigators...")
-                context['all_investigators'] = self.db.query("""
-                    MATCH (i:Investigator)
-                    RETURN i.name as name, i.badge_number as badge,
-                           i.department as department, i.specialization as specialization,
-                           i.cases_solved as solved, i.active_cases as active
-                    ORDER BY i.cases_solved DESC
-                """)
-                print("✅ Investigators fetched")
-            except Exception as e:
-                print(f"❌ Error fetching investigators: {e}")
-        
-        # ========== MO PATTERNS ==========
-        if any(w in q for w in ['modus operandi', 'mo', 'pattern', 'method', 'signature', 'similar']):
-            try:
-                print("🎯 Fetching MO patterns...")
-                context['all_mo_patterns'] = self.db.query("""
-                    MATCH (m:ModusOperandi)
-                    RETURN m.id as id, m.description as description,
-                           m.signature_element as signature, m.frequency as frequency
-                    ORDER BY m.frequency DESC
-                """)
-                
-                context['crimes_by_mo'] = self.db.query("""
-                    MATCH (c:Crime)-[r:MATCHES_MO]->(m:ModusOperandi)
-                    RETURN m.description as mo, c.id as crime_id, 
-                           c.type as crime_type, r.similarity as similarity
-                    ORDER BY r.similarity DESC
-                    LIMIT 40
-                """)
-                print("✅ MO patterns fetched")
-            except Exception as e:
-                print(f"❌ Error fetching MO patterns: {e}")
-        
-        # ========== VEHICLES ==========
-        if any(w in q for w in ['vehicle', 'car', 'truck', 'getaway', 'stolen']):
-            try:
-                print("🚗 Fetching vehicles...")
-                context['all_vehicles'] = self.db.query("""
-                    MATCH (v:Vehicle)
-                    RETURN v.id as id, v.make as make, v.model as model,
-                           v.year as year, v.color as color, 
-                           v.license_plate as plate, v.reported_stolen as stolen
-                    ORDER BY v.reported_stolen DESC
-                    LIMIT 30
-                """)
-                print("✅ Vehicles fetched")
-            except Exception as e:
-                print(f"❌ Error fetching vehicles: {e}")
-        
-        # ========== WEAPONS ==========
-        if any(w in q for w in ['weapon', 'gun', 'firearm', 'knife', 'armed']):
-            try:
-                print("🔫 Fetching weapons...")
-                context['all_weapons'] = self.db.query("""
-                    MATCH (w:Weapon)
-                    RETURN w.id as id, w.type as type, w.make as make,
-                           w.model as model, w.recovered as recovered
-                    LIMIT 30
-                """)
-                
-                # Also fetch armed gang members
-                context['armed_gang_members'] = self.db.query("""
-                    MATCH (p:Person)-[:MEMBER_OF]->(o:Organization)
-                    MATCH (p)-[:OWNS]->(w:Weapon)
-                    RETURN p.name as member, o.name as gang, 
-                           w.type as weapon_type, w.id as weapon_id
-                    ORDER BY o.name
-                    LIMIT 30
-                """)
-                print("✅ Weapons fetched")
-            except Exception as e:
-                print(f"❌ Error fetching weapons: {e}")
-        
-        # ========== LOCATION-SPECIFIC ==========
-        if locations:
-            for location in locations[:3]:
-                try:
-                    print(f"📍 Fetching data for location: {location}")
-                    context[f'crimes_in_{location}'] = self.db.query(f"""
-                        MATCH (c:Crime)-[:OCCURRED_AT]->(l:Location)
-                        WHERE l.name =~ '(?i).*{location}.*'
-                        RETURN c.id as crime_id, c.type as crime_type, 
-                               c.date as date, c.severity as severity
-                        ORDER BY c.date DESC
-                        LIMIT 30
-                    """)
-                    
-                    context[f'suspects_in_{location}'] = self.db.query(f"""
-                        MATCH (p:Person)-[:PARTY_TO]->(c:Crime)-[:OCCURRED_AT]->(l:Location)
-                        WHERE l.name =~ '(?i).*{location}.*'
-                        WITH p, count(DISTINCT c) as crime_count
-                        RETURN p.name as name, p.age as age, p.risk_score as risk_score,
-                               crime_count
-                        ORDER BY crime_count DESC
-                        LIMIT 20
-                    """)
-                    print(f"✅ Location data fetched for {location}")
-                except Exception as e:
-                    print(f"❌ Error fetching {location} data: {e}")
-        
-        # ========== PERSON-SPECIFIC ==========
-        if person_names:
-            for name in person_names[:3]:
-                try:
-                    # Escape special regex characters
-                    escaped_name = re.escape(name)
-                    
-                    print(f"👤 Fetching data for person: {name}")
-                    
-                    # Get person's basic info
-                    person_info = self.db.query(f"""
-                        MATCH (p:Person)
-                        WHERE p.name =~ '(?i).*{escaped_name}.*'
-                        RETURN p.name as name, p.age as age, p.risk_score as risk_score,
-                               p.occupation as occupation, p.criminal_record as has_record
-                    """)
-                    
-                    if person_info:
-                        context[f'{name}_info'] = person_info
-                    
-                    # Get person's organizations
-                    person_orgs = self.db.query(f"""
-                        MATCH (p:Person)-[r:MEMBER_OF]->(o:Organization)
-                        WHERE p.name =~ '(?i).*{escaped_name}.*'
-                        RETURN o.name as organization, r.rank as rank, r.since as since
-                    """)
-                    
-                    if person_orgs:
-                        context[f'{name}_organizations'] = person_orgs
-                    
-                    # Get person's crimes
-                    person_crimes = self.db.query(f"""
-                        MATCH (p:Person)-[:PARTY_TO]->(c:Crime)
-                        WHERE p.name =~ '(?i).*{escaped_name}.*'
-                        RETURN c.type as crime_type, c.date as date, c.id as crime_id
-                        ORDER BY c.date DESC
-                        LIMIT 20
-                    """)
-                    
-                    if person_crimes:
-                        context[f'{name}_crimes'] = person_crimes
-                    
-                    # Get connections
-                    context[f'{name}_connections'] = self.db.query(f"""
-                        MATCH (p:Person)-[:KNOWS*1..2]-(connected:Person)
-                        WHERE p.name =~ '(?i).*{escaped_name}.*'
-                        RETURN DISTINCT connected.name as name, 
-                               connected.age as age,
-                               connected.criminal_record as has_record
-                        LIMIT 30
-                    """)
-                    print(f"✅ Person data fetched for {name}")
-                except Exception as e:
-                    print(f"❌ Error fetching {name} data: {e}")
-        
-        # ========== PATTERNS ==========
-        if any(w in q for w in ['hotspot', 'dangerous', 'where', 'most crime']):
-            try:
-                print("🔥 Fetching crime hotspots...")
-                hotspot_query = """
-MATCH (c:Crime)-[:OCCURRED_AT]->(l:Location)
-RETURN l.name as location, l.district as district,
-       count(c) as crimes
-ORDER BY crimes DESC
-LIMIT 15
-                """.strip()
-                
-                cypher_queries.append(("Crime Hotspots", hotspot_query))
-                context['hotspots'] = self.db.query(hotspot_query)
-                print("✅ Hotspots fetched")
-            except Exception as e:
-                print(f"❌ Error fetching hotspots: {e}")
-        
-        if any(w in q for w in ['repeat', 'offender', 'criminal', 'suspect']):
-            try:
-                print("🔁 Fetching repeat offenders...")
-                repeat_query = """
-MATCH (p:Person)-[:PARTY_TO]->(c:Crime)
-WITH p, count(c) as crimes
-WHERE crimes >= 2
-OPTIONAL MATCH (p)-[:MEMBER_OF]->(o:Organization)
-RETURN p.name as name, p.age as age, crimes,
-       o.name as organization
-ORDER BY crimes DESC
-LIMIT 20
-                """.strip()
-                
-                cypher_queries.append(("Repeat Offenders", repeat_query))
-                context['repeat_offenders'] = self.db.query(repeat_query)
-                print("✅ Repeat offenders fetched")
-            except Exception as e:
-                print(f"❌ Error fetching repeat offenders: {e}")
-        
-        if any(w in q for w in ['network', 'connected', 'know', 'associate']):
-            try:
-                print("🕸️ Fetching criminal networks...")
-                network_query = """
-MATCH (p1:Person)-[:KNOWS]-(p2:Person)
-WHERE EXISTS((p1)-[:PARTY_TO]->(:Crime))
-  AND EXISTS((p2)-[:PARTY_TO]->(:Crime))
-RETURN p1.name as person1, p2.name as person2
-LIMIT 30
-                """.strip()
-                
-                cypher_queries.append(("Criminal Networks", network_query))
-                context['criminal_networks'] = self.db.query(network_query)
-                print("✅ Networks fetched")
-            except Exception as e:
-                print(f"❌ Error fetching networks: {e}")
-        
-        # ========== GRAPH ALGORITHMS ==========
-        # PageRank / Influence / Key criminals
-        if any(w in q for w in ['influential', 'important', 'key', 'pagerank', 'influence', 'priority', 'target']):
-            try:
-                print("📊 Calculating influence scores (PageRank)...")
-                pagerank_query = """
-MATCH (p:Person)-[:PARTY_TO]->(c:Crime)
+        # 3. GRAPH ALGORITHM QUERIES
+        if any(phrase in q for phrase in ['influential', 'most important', 'key criminal', 'pagerank', 'influence']):
+            influence_query = """MATCH (p:Person)-[:PARTY_TO]->(c:Crime)
 WITH p, count(c) as crimes
 OPTIONAL MATCH (p)-[:KNOWS]-(connected:Person)
 WITH p, crimes, count(DISTINCT connected) as connections
@@ -441,47 +183,33 @@ RETURN p.name as name,
        o.name as gang,
        (crimes * 0.5 + connections * 0.5) as influence_score
 ORDER BY influence_score DESC
-LIMIT 20
-                """.strip()
-                
-                cypher_queries.append(("PageRank - Influential Criminals", pagerank_query))
-                context['influential_criminals'] = self.db.query(pagerank_query)
-                print(f"✅ Found {len(context['influential_criminals'])} influential criminals")
-            except Exception as e:
-                print(f"❌ Error calculating influence: {e}")
+LIMIT 15"""
+            
+            cypher_queries.append(("PageRank - Influence Analysis", influence_query))
+            context['influential_criminals'] = self.db.query(influence_query)
         
-        # Community Detection / Hidden rings
-        if any(w in q for w in ['community', 'hidden', 'ring', 'group', 'cluster', 'working together']):
-            try:
-                print("🎯 Detecting hidden crime rings...")
-                hidden_rings_query = """
-MATCH (p1:Person)-[:PARTY_TO]->(c:Crime)<-[:PARTY_TO]-(p2:Person)
-WHERE p1 <> p2
-  AND NOT EXISTS((p1)-[:MEMBER_OF]->(:Organization))
-  AND NOT EXISTS((p2)-[:MEMBER_OF]->(:Organization))
-WITH p1, p2, count(c) as shared_crimes
-WHERE shared_crimes >= 2
-RETURN p1.name as person1,
-       p2.name as person2,
-       shared_crimes,
-       p1.age as age1,
-       p2.age as age2
-ORDER BY shared_crimes DESC
-LIMIT 20
-                """.strip()
-                
-                cypher_queries.append(("Community Detection - Hidden Rings", hidden_rings_query))
-                context['hidden_crime_rings'] = self.db.query(hidden_rings_query)
-                print(f"✅ Found {len(context['hidden_crime_rings'])} hidden rings")
-            except Exception as e:
-                print(f"❌ Error detecting communities: {e}")
+        # Betweenness - Bridge between gangs
+        if any(phrase in q for phrase in ['bridge', 'connection', 'multiple gang', 'different gang', 'cross-gang', 'connects']):
+            bridge_query = """MATCH (p:Person)-[:KNOWS]-(other:Person)-[:MEMBER_OF]->(o:Organization)
+WITH p, collect(DISTINCT o.name) as connected_gangs
+WHERE size(connected_gangs) >= 2
+OPTIONAL MATCH (p)-[:MEMBER_OF]->(own_gang:Organization)
+OPTIONAL MATCH (p)-[:PARTY_TO]->(c:Crime)
+RETURN p.name as name,
+       p.age as age,
+       own_gang.name as own_gang,
+       connected_gangs,
+       size(connected_gangs) as gang_connections,
+       count(c) as crimes
+ORDER BY gang_connections DESC, crimes DESC
+LIMIT 15"""
+            
+            cypher_queries.append(("Betweenness - Gang Bridges", bridge_query))
+            context['gang_bridges'] = self.db.query(bridge_query)
         
-        # Centrality / Most connected / Hubs
-        if any(w in q for w in ['centrality', 'hub', 'connector', 'bridge', 'most connected']):
-            try:
-                print("🔗 Calculating centrality measures...")
-                centrality_query = """
-MATCH (p:Person)-[r]-(connected)
+        # Centrality - Most connected
+        if any(phrase in q for phrase in ['most connected', 'hub', 'network hub', 'degree central']):
+            hub_query = """MATCH (p:Person)-[r]-(connected)
 WITH p, count(DISTINCT connected) as total_connections
 OPTIONAL MATCH (p)-[:MEMBER_OF]->(o:Organization)
 OPTIONAL MATCH (p)-[:PARTY_TO]->(c:Crime)
@@ -491,333 +219,402 @@ RETURN p.name as name,
        count(DISTINCT c) as crimes,
        o.name as gang
 ORDER BY total_connections DESC
-LIMIT 20
-                """.strip()
-                
-                cypher_queries.append(("Degree Centrality - Network Hubs", centrality_query))
-                context['network_hubs'] = self.db.query(centrality_query)
-                print(f"✅ Found {len(context['network_hubs'])} network hubs")
-                
-                # Betweenness - bridges between gangs
-                betweenness_query = """
-MATCH (p:Person)-[:KNOWS]-(other:Person)-[:MEMBER_OF]->(o:Organization)
-WITH p, collect(DISTINCT o.name) as connected_gangs
-WHERE size(connected_gangs) > 1
-OPTIONAL MATCH (p)-[:MEMBER_OF]->(own_gang:Organization)
-RETURN p.name as name,
-       own_gang.name as own_gang,
-       connected_gangs,
-       size(connected_gangs) as gang_connections
-ORDER BY gang_connections DESC
-LIMIT 15
-                """.strip()
-                
-                cypher_queries.append(("Betweenness Centrality - Gang Bridges", betweenness_query))
-                context['gang_bridges'] = self.db.query(betweenness_query)
-                print(f"✅ Found {len(context['gang_bridges'])} gang bridges")
-            except Exception as e:
-                print(f"❌ Error calculating centrality: {e}")
+LIMIT 15"""
+            
+            cypher_queries.append(("Degree Centrality - Network Hubs", hub_query))
+            context['network_hubs'] = self.db.query(hub_query)
         
-        # Shortest path between two people
-        if any(w in q for w in ['path', 'connection between', 'how is', 'connected to', 'related to']):
-            # Try to extract two person names for path query
+        # 4. PATHFINDING QUERIES
+        if any(phrase in q for phrase in ['path between', 'connected to', 'link between', 'connection between']):
             if len(person_names) >= 2:
-                try:
-                    print(f"🛤️ Finding path between {person_names[0]} and {person_names[1]}...")
-                    path_query = f"""
-MATCH path = shortestPath(
-    (p1:Person {{name: '{person_names[0]}'}})-[:KNOWS*..6]-(p2:Person {{name: '{person_names[1]}'}})
+                name1, name2 = person_names[0], person_names[1]
+                
+                path_query = f"""MATCH path = shortestPath(
+    (p1:Person {{name: '{name1}'}})-[:KNOWS*..6]-(p2:Person {{name: '{name2}'}})
 )
 RETURN [node in nodes(path) | node.name] as path_nodes,
-       length(path) as path_length
-LIMIT 1
-                    """.strip()
-                    
-                    cypher_queries.append((f"Shortest Path - {person_names[0]} to {person_names[1]}", path_query))
+       length(path) as path_length,
+       [rel in relationships(path) | type(rel)] as relationship_types
+LIMIT 1"""
+                
+                cypher_queries.append((f"Shortest Path - {name1} to {name2}", path_query))
+                try:
                     path_result = self.db.query(path_query)
                     if path_result:
                         context['connection_path'] = path_result
-                        print(f"✅ Found path of length {path_result[0]['path_length']}")
+                except:
+                    pass
+        
+        # 5. COMMUNITY/PATTERN DETECTION
+        if any(phrase in q for phrase in ['hidden', 'crime ring', 'working together', 'community', 'cluster']):
+            hidden_ring_query = """MATCH (p1:Person)-[:PARTY_TO]->(c:Crime)<-[:PARTY_TO]-(p2:Person)
+WHERE p1.name < p2.name
+  AND NOT EXISTS((p1)-[:MEMBER_OF]->(:Organization))
+  AND NOT EXISTS((p2)-[:MEMBER_OF]->(:Organization))
+WITH p1, p2, count(c) as shared_crimes, collect(c.type) as crime_types
+WHERE shared_crimes >= 2
+RETURN p1.name as person1,
+       p2.name as person2,
+       p1.age as age1,
+       p2.age as age2,
+       shared_crimes,
+       crime_types
+ORDER BY shared_crimes DESC
+LIMIT 15"""
+            
+            cypher_queries.append(("Hidden Crime Rings Detection", hidden_ring_query))
+            context['hidden_rings'] = self.db.query(hidden_ring_query)
+        
+        # 6. TRIANGLES / CLIQUES
+        if any(phrase in q for phrase in ['triangle', 'all know each other', 'mutual', 'clique']):
+            triangle_query = """MATCH (p1:Person)-[:KNOWS]-(p2:Person)-[:KNOWS]-(p3:Person)-[:KNOWS]-(p1)
+WHERE p1.name < p2.name AND p2.name < p3.name
+RETURN p1.name as person1, p2.name as person2, p3.name as person3
+LIMIT 20"""
+            
+            cypher_queries.append(("Triangle Patterns", triangle_query))
+            context['triangles'] = self.db.query(triangle_query)
+        
+        # 7. EVIDENCE CHAINS
+        if any(phrase in q for phrase in ['evidence chain', 'evidence link', 'evidence connect']):
+            evidence_chain_query = """MATCH (c:Crime)-[:HAS_EVIDENCE]->(e:Evidence)-[:LINKS_TO]->(p:Person)
+RETURN c.type as crime_type,
+       c.id as crime_id,
+       e.description as evidence,
+       e.significance as significance,
+       p.name as suspect
+ORDER BY e.significance
+LIMIT 20"""
+            
+            cypher_queries.append(("Evidence Chain Analysis", evidence_chain_query))
+            context['evidence_chains'] = self.db.query(evidence_chain_query)
+        
+        # 8. STANDARD ENTITY QUERIES (Fallback)
+        if any(w in q for w in ['organization', 'gang', 'crew']) or not cypher_queries:
+            try:
+                org_query = """MATCH (o:Organization)
+RETURN o.name as name, o.type as type, o.territory as territory, o.members_count as members
+ORDER BY o.members_count DESC"""
+                
+                cypher_queries.append(("All Organizations", org_query))
+                context['all_organizations'] = self.db.query(org_query)
+                
+                members_query = """MATCH (p:Person)-[:MEMBER_OF]->(o:Organization)
+RETURN o.name as organization, p.name as member, p.age as age
+ORDER BY o.name
+LIMIT 50"""
+                
+                cypher_queries.append(("Organization Members", members_query))
+                context['organization_members'] = self.db.query(members_query)
+            except Exception as e:
+                print(f"❌ Org error: {e}")
+        
+        # PERSON-SPECIFIC (when name mentioned)
+        if person_names:
+            for name in person_names[:2]:
+                try:
+                    escaped = re.escape(name)
+                    
+                    # Check if person exists
+                    check_query = f"MATCH (p:Person) WHERE p.name =~ '(?i).*{escaped}.*' RETURN p.name as name LIMIT 1"
+                    person_exists = self.db.query(check_query)
+                    
+                    if person_exists:
+                        actual_name = person_exists[0]['name']
+                        
+                        # Basic info
+                        info_query = f"MATCH (p:Person {{name: '{actual_name}'}}) RETURN p.name as name, p.age as age, p.occupation as occupation"
+                        cypher_queries.append((f"{actual_name} - Info", info_query))
+                        context[f'{name}_info'] = self.db.query(info_query)
+                        
+                        # Crimes
+                        crimes_query = f"""MATCH (p:Person {{name: '{actual_name}'}})-[:PARTY_TO]->(c:Crime)
+RETURN c.type as crime_type, c.date as date, c.severity as severity
+ORDER BY c.date DESC
+LIMIT 20"""
+                        
+                        cypher_queries.append((f"{actual_name} - Crimes", crimes_query))
+                        context[f'{name}_crimes'] = self.db.query(crimes_query)
+                        
+                        # Connections (always include for graph analysis)
+                        conn_query = f"""MATCH (p:Person {{name: '{actual_name}'}})-[:KNOWS]-(other:Person)
+OPTIONAL MATCH (other)-[:MEMBER_OF]->(o:Organization)
+RETURN DISTINCT other.name as name, other.age as age, o.name as gang
+LIMIT 30"""
+                        
+                        cypher_queries.append((f"{actual_name} - Connections", conn_query))
+                        context[f'{name}_connections'] = self.db.query(conn_query)
+                        
+                        # Gang membership
+                        gang_query = f"""MATCH (p:Person {{name: '{actual_name}'}})-[:MEMBER_OF]->(o:Organization)
+RETURN o.name as organization"""
+                        
+                        result = self.db.query(gang_query)
+                        if result:
+                            context[f'{name}_gang'] = result
                 except Exception as e:
-                    print(f"❌ Error finding path: {e}")
+                    print(f"❌ Error for {name}: {e}")
         
-        return context, cypher_queries  # Return both context and queries
-    
-    def _extract_entities_from_history(self, conversation_history):
-        """Extract entities mentioned in previous conversation"""
-        entities = {
-            'locations': [],
-            'persons': [],
-            'organizations': []
-        }
+        # COMMON QUERIES
+        if any(w in q for w in ['hotspot', 'most crime']):
+            query = """MATCH (c:Crime)-[:OCCURRED_AT]->(l:Location)
+RETURN l.name as location, count(c) as crimes
+ORDER BY crimes DESC
+LIMIT 10"""
+            cypher_queries.append(("Crime Hotspots", query))
+            context['hotspots'] = self.db.query(query)
         
-        if not conversation_history:
-            return entities
+        if any(w in q for w in ['repeat', 'offender']):
+            query = """MATCH (p:Person)-[:PARTY_TO]->(c:Crime)
+WITH p, count(c) as crimes
+WHERE crimes >= 2
+OPTIONAL MATCH (p)-[:MEMBER_OF]->(o:Organization)
+RETURN p.name as name, p.age as age, crimes, o.name as gang
+ORDER BY crimes DESC
+LIMIT 15"""
+            cypher_queries.append(("Repeat Offenders", query))
+            context['repeat_offenders'] = self.db.query(query)
         
-        # Look at last 2-3 exchanges
-        recent_history = conversation_history[-6:] if len(conversation_history) > 6 else conversation_history
-        
-        for msg in recent_history:
-            content = msg.get('content', '')
-            
-            # Extract locations
-            entities['locations'].extend(self._extract_locations(content))
-            
-            # Extract person names
-            entities['persons'].extend(self._extract_person_names(content))
-            
-            # Extract organizations
-            entities['organizations'].extend(self._extract_organizations(content))
-        
-        return entities
-    
-    def _extract_locations(self, question):
-        """Extract location names from question"""
-        try:
-            all_locations = self.db.query("MATCH (l:Location) RETURN l.name as name")
-            locations_found = []
-            q_lower = question.lower()
-            
-            for loc in all_locations:
-                if loc['name'].lower() in q_lower:
-                    locations_found.append(loc['name'])
-            
-            return locations_found
-        except:
-            return []
-    
-    def _extract_crime_types(self, question):
-        """Extract crime types from question"""
-        crime_types_known = [
-            "Theft", "Battery", "Criminal Damage", "Assault", "Burglary",
-            "Motor Vehicle Theft", "Robbery", "Deceptive Practice",
-            "Criminal Trespass", "Narcotics", "Weapons Violation"
-        ]
-        
-        found_types = []
-        q_lower = question.lower()
-        
-        for ctype in crime_types_known:
-            if ctype.lower() in q_lower:
-                found_types.append(ctype)
-        
-        return found_types
+        return context, cypher_queries
     
     def _extract_person_names(self, question):
-        """Extract potential person names from question - IMPROVED"""
-        # Common words to exclude
-        exclude_words = [
-            'i', 'chicago', 'det', 'detective', 'side', 'west', 'east', 'north', 
-            'south', 'river', 'downtown', 'gang', 'crew', 'burglars', 'dealers',
-            'syndicate', 'street', 'the', 'a', 'an'
-        ]
+        """Extract person names from question"""
+        exclude = ['i', 'chicago', 'detective', 'side', 'gang', 'crew', 'street', 'show', 'his', 'her', 'their']
         
         words = question.split()
-        potential_names = []
+        names = []
         
         i = 0
         while i < len(words):
-            word = words[i]
+            word = words[i].strip('.,!?*')
             
-            # Skip if not capitalized or is excluded
-            if len(word) == 0 or not word[0].isupper() or word.lower() in exclude_words:
-                i += 1
-                continue
-            
-            # Check if next word is also capitalized (likely a full name)
-            if i + 1 < len(words) and len(words[i+1]) > 0 and words[i+1][0].isupper():
-                next_word = words[i+1]
-                
-                # Skip if next word is excluded (like "Side" in "East Side")
-                if next_word.lower() not in exclude_words:
-                    full_name = f"{word} {next_word}"
-                    
-                    # Remove punctuation
-                    full_name = full_name.rstrip('.,!?*')
-                    
-                    potential_names.append(full_name)
-                    i += 2  # Skip both words
-                    continue
-            
+            if len(word) > 0 and word[0].isupper() and word.lower() not in exclude:
+                # Check for full name
+                if i + 1 < len(words):
+                    next_word = words[i+1].strip('.,!?*')
+                    if len(next_word) > 0 and next_word[0].isupper() and next_word.lower() not in exclude:
+                        names.append(f"{word} {next_word}")
+                        i += 2
+                        continue
             i += 1
         
-        print(f"  📝 Extracted person names: {potential_names}")
-        return potential_names
+        return names
     
-    def _extract_organizations(self, question):
-        """Extract organization names from question"""
-        try:
-            all_orgs = self.db.query("MATCH (o:Organization) RETURN o.name as name")
-            orgs_found = []
-            q_lower = question.lower()
-            
-            for org in all_orgs:
-                if org['name'].lower() in q_lower:
-                    orgs_found.append(org['name'])
-            
-            return orgs_found
-        except:
-            return []
-    
-    def _generate_with_llm_conversational(self, question, context, conversation_history):
-        """Generate answer using LLM with conversation awareness"""
+    def _generate_with_llm(self, question, context, conversation_history):
+        """Generate with LLM"""
         
-        system_prompt = """You are a crime investigation AI assistant analyzing data from a Neo4j knowledge graph.
+        system_prompt = """You are a crime investigation AI assistant. Answer using ONLY the provided database results.
 
-CRITICAL ANTI-HALLUCINATION RULES:
-1. ONLY use data explicitly provided in the context below
-2. NEVER make up names, numbers, or details not in the data
-3. If you see "all_weapons" with 13 items, say "13 weapons" NOT "30 weapons"
-4. If specific names aren't in the data, say "the data shows X organizations" instead of making up organization names
-5. Count items in the data - don't use round numbers unless they're exact
-6. If asked for details not in the data, say "I don't have that information in the current data"
-
-RESPONSE STYLE:
-- Write 2-4 natural paragraphs (NOT bullet lists or tables)
-- Bold **important facts** with double asterisks
-- Be conversational but FACTUAL
-- End with a relevant follow-up question
+CRITICAL FORMATTING RULES:
+1. Write in NATURAL PARAGRAPHS - NO bullet points, NO lists, NO numbered items
+2. Use **bold** for important names, numbers, and key facts
+3. Write 2-4 flowing paragraphs that read naturally
+4. Connect ideas smoothly between sentences
+5. End with ONE follow-up question
 
 WHAT TO BOLD:
-- **Actual names** from the data (persons, organizations, locations)
-- **Exact numbers** from the data (not estimates)
+- **Suspect names** (exact from data)
+- **Organization names** (gangs, crews)
+- **Exact numbers** (crime counts, connections, scores)
 - **Crime types** when mentioned
-- **Key findings** that are in the data
+- **Key findings** (influence scores, rankings)
 
-VERIFICATION CHECKLIST:
-Before writing each fact, ask yourself:
-✓ Is this EXACT information in the context data?
-✓ Am I using the ACTUAL count from the data?
-✓ Am I using REAL names from the results?
-✓ Or am I inferring/estimating/making it up?
+ANTI-HALLUCINATION:
+- Use ONLY data from the context
+- Count items accurately - no rounding
+- Real names only - never invent
 
-If you can't verify it's in the data → DON'T SAY IT
+Example CORRECT format:
+"Based on the network analysis, **David Rodriguez** is connected to **8 people** in his immediate network. His first-degree connections include **Sarah Chen**, **Lisa Rivera**, and **Maria Brown**, all of whom are gang members. Moving to second-degree connections, the network expands to include **34 additional individuals**, bringing the total network size to **42 people**. This demonstrates how quickly criminal networks can spread through just two relationship hops.
 
-Example CORRECT response:
-"I found **5 organizations** in the database. The largest is **South Side Syndicate** with **40 members**, followed by **West Side Crew** with **25 members**. Based on the member data, I can see **40 gang members** across these organizations."
+Would you like to see the specific crimes these network members have committed?"
 
-Example INCORRECT response (HALLUCINATION):
-"I found 5 organizations. Carlos Rodriguez and Michael Brown are key members..." ← WRONG if these names aren't in the org_members data!
+Example WRONG format (DO NOT DO THIS):
+"Here are the connections:
+- Direct connections: 8 people
+- Second degree: 34 people
+- Total network: 42 people"
 
-REMEMBER: You are showing WHAT IS IN THE DATABASE, not what MIGHT be there."""
+REMEMBER: Flowing paragraphs, not lists!"""
         
-        # Build messages
         messages = [{"role": "system", "content": system_prompt}]
         
-        # Add recent conversation
-        recent_history = conversation_history[-10:] if len(conversation_history) > 10 else conversation_history
-        for msg in recent_history:
-            messages.append({
-                "role": msg['role'],
-                "content": msg['content']
-            })
+        # Recent history
+        for msg in conversation_history[-8:]:
+            messages.append({"role": msg['role'], "content": msg['content']})
         
-        # Format context - SHOW EXACT DATA
-        context_str = "\n=== EXACT DATA FROM DATABASE ===\n\n"
+        # Format context
+        context_str = "\n=== DATABASE RESULTS ===\n\n"
         for key, value in context.items():
             if value:
-                context_str += f"\n{key.replace('_', ' ').upper()}:\n"
-                
-                # Show full data for critical fields
-                if isinstance(value, list):
-                    context_str += f"COUNT: {len(value)} items\n"
-                    context_str += f"DATA: {json.dumps(value, indent=2, default=str)[:2000]}\n"
-                else:
+                context_str += f"{key.upper()}:\n"
+                if isinstance(value, list) and len(value) > 0:
+                    context_str += f"Count: {len(value)}\n"
+                    for item in value[:10]:
+                        context_str += f"  • {json.dumps(item, default=str)}\n"
+                elif isinstance(value, dict):
                     context_str += f"{json.dumps(value, indent=2, default=str)}\n"
+                context_str += "\n"
         
-        context_str += "\n=== END OF DATABASE DATA ===\n"
-        context_str += "\nCRITICAL: Use ONLY the data above. If you say '30 weapons' but the data shows 13, you are HALLUCINATING."
-        
-        # Add current question
-        messages.append({
-            "role": "user",
-            "content": f"{question}\n\n{context_str}"
-        })
+        messages.append({"role": "user", "content": f"{question}\n\n{context_str}"})
         
         response = self.client.chat.completions.create(
             model=self.model,
             messages=messages,
-            temperature=0.2,  # LOWERED from 0.7 - less creativity = less hallucination
-            max_tokens=800
+            temperature=0.3,
+            max_tokens=600
         )
         
-        return response.choices[0].message.content
+        return response.choices[0].message.content.strip()
     
     def _generate_fallback(self, question, context):
-        """Generate detailed answer without LLM"""
-        answer = ""
+        """Smart fallback generator"""
+        
+        parts = []
+        
+        # Database stats
+        if 'database_stats' in context:
+            stats = context['database_stats']
+            parts.append(f"The database contains **{stats.get('total_crimes', 0)} crimes** and **{stats.get('total_persons', 0)} suspects**.")
+        
+        # Degree connections
+        if 'degree_1_connections' in context:
+            deg1 = context['degree_1_connections']
+            deg2 = context.get('degree_2_connections', [])
+            
+            if deg1 and deg2:
+                names_sample = ', '.join([f"**{d['name']}**" for d in deg1[:5]])
+                more_text = f" and **{len(deg1)-5}** others" if len(deg1) > 5 else ""
+                
+                parts.append(
+                    f"Starting with first-degree connections, I found **{len(deg1)} direct associates** including {names_sample}{more_text}. "
+                    f"Expanding to second-degree connections brings **{len(deg2)} additional people** into the network, "
+                    f"for a total network size of **{len(deg1) + len(deg2)} individuals**. This demonstrates how quickly "
+                    f"criminal networks expand through just two relationship hops."
+                )
+            elif deg1:
+                names_list = ', '.join([f"**{d['name']}**" for d in deg1[:8]])
+                parts.append(
+                    f"The direct network includes **{len(deg1)} people**: {names_list}. "
+                    f"These are all first-degree connections through KNOWS relationships in the graph."
+                )
+        
+        # Collaborations
+        if 'collaborations' in context:
+            collabs = context['collaborations']
+            if collabs:
+                same_gang = [c for c in collabs if c.get('gang_status') == 'same']
+                diff_gang = [c for c in collabs if c.get('gang_status') == 'different']
+                
+                if diff_gang:
+                    example = diff_gang[0]
+                    parts.append(
+                        f"Pattern matching analysis identified **{len(collabs)} pairs of suspects** who committed crimes together. "
+                        f"Notably, **{len(diff_gang)} pairs** are from different gangs. For instance, **{example['person1']}** "
+                        f"from **{example.get('gang1', 'Independent')}** and **{example['person2']}** from **{example.get('gang2', 'Independent')}** "
+                        f"collaborated on **{example['shared_crimes']} crimes**, suggesting cross-organizational criminal activity."
+                    )
+                else:
+                    parts.append(
+                        f"Analysis shows **{len(collabs)} pairs** who committed crimes together, primarily within their own organizations."
+                    )
+        
+        # Cross-gang collaboration
+        if 'cross_gang_collaboration' in context:
+            cross = context['cross_gang_collaboration']
+            if cross:
+                top = cross[0]
+                crime_list = ', '.join(top.get('crime_types', [])[:3])
+                
+                parts.append(
+                    f"Cross-gang collaboration analysis reveals **{len(cross)} suspect pairs** from different organizations working together. "
+                    f"The most active pairing is **{top['person1']}** from **{top['gang1']}** and **{top['person2']}** from **{top['gang2']}**, "
+                    f"who collaborated on **{top['shared_crimes']} crimes** including {crime_list}. This suggests strategic gang alliances "
+                    f"or independent actors bridging multiple organizations."
+                )
+        
+        # Influential
+        if 'influential_criminals' in context:
+            influential = context['influential_criminals']
+            if influential:
+                top = influential[0]
+                
+                para = f"Network influence analysis identifies **{top['name']}** (Age {top['age']}) as the most influential criminal with an influence score of **{top['influence_score']:.1f}**. "
+                para += f"This ranking is based on **{top['crimes']} crimes** committed and **{top['connections']} network connections**"
+                if top.get('gang'):
+                    para += f", operating within **{top['gang']}**"
+                para += ". "
+                
+                if len(influential) >= 2:
+                    top2 = influential[1]
+                    para += f"The second-ranked individual is **{top2['name']}** with a score of **{top2['influence_score']:.1f}**. "
+                
+                para += "These influence scores combine criminal activity and network position using a weighted formula to identify key targets for investigation."
+                parts.append(para)
+        
+        # Gang bridges
+        if 'gang_bridges' in context:
+            bridges = context['gang_bridges']
+            if bridges:
+                top_bridge = bridges[0]
+                gangs_list = ', '.join([f"**{g}**" for g in top_bridge['connected_gangs'][:3]])
+                
+                parts.append(
+                    f"Betweenness centrality analysis reveals **{len(bridges)} individuals** who act as bridges between different gangs. "
+                    f"The most significant bridge is **{top_bridge['name']}**, who connects **{top_bridge['gang_connections']} different organizations** "
+                    f"including {gangs_list}. Such individuals are often informants, brokers, or strategic targets for disrupting criminal networks."
+                )
         
         # Organizations
-        if 'all_organizations' in context and context['all_organizations']:
-            answer += "**🏢 Criminal Organizations:**\n\n"
-            for org in context['all_organizations']:
-                answer += f"- **{org['name']}** ({org['type']})\n"
-                answer += f"  Territory: {org['territory']} | Members: {org['members']}\n"
-            answer += "\n"
+        if 'all_organizations' in context and not parts:
+            orgs = context['all_organizations']
+            if orgs:
+                org_names = ', '.join([f"**{o['name']}**" for o in orgs[:5]])
+                more = f" and **{len(orgs)-5}** others" if len(orgs) > 5 else ""
+                
+                parts.append(
+                    f"The knowledge graph tracks **{len(orgs)} criminal organizations** operating across Chicago, including {org_names}{more}. "
+                    f"The largest organization is **{orgs[0]['name']}** with **{orgs[0].get('members', 0)} members** "
+                    f"controlling the **{orgs[0].get('territory', 'unknown')}** territory."
+                )
         
-        if 'organization_members' in context and context['organization_members']:
-            answer += "**👥 Key Members:**\n\n"
-            for member in context['organization_members'][:10]:
-                answer += f"- {member['member']} ({member['rank']}) - {member['organization']}\n"
-            answer += "\n"
+        # Combine
+        if parts:
+            return " ".join(parts) + "\n\nWould you like more details?"
+        else:
+            return self._generate_emergency_fallback(context)
+    
+    def _generate_emergency_fallback(self, context):
+        """Always returns something in paragraph format"""
+        stats = context.get('database_stats', {})
         
-        # Evidence
-        if 'all_evidence' in context and context['all_evidence']:
-            answer += "**🔍 Evidence:**\n\n"
-            for ev in context['all_evidence'][:10]:
-                answer += f"- **{ev['id']}**: {ev['description']} ({ev['significance']})\n"
-            answer += "\n"
-        
-        # Locations
-        location_keys = [k for k in context.keys() if 'suspects_in_' in k]
-        for key in location_keys:
-            location = key.replace('suspects_in_', '')
-            suspects = context[key]
-            if suspects:
-                answer += f"**🔍 Suspects in {location}:**\n\n"
-                for s in suspects[:10]:
-                    answer += f"- {s['name']} (Age: {s['age']}, Crimes: {s['crime_count']})\n"
-                answer += "\n"
-        
-        # Hotspots
-        if 'hotspots' in context and context['hotspots']:
-            answer += "**🔥 Crime Hotspots:**\n\n"
-            for h in context['hotspots'][:10]:
-                answer += f"- {h['location']}: {h['crimes']} crimes\n"
-            answer += "\n"
-        
-        # Default
-        if not answer or len(answer) < 50:
-            stats = context.get('database_stats', {})
-            answer = "**📊 Database Overview:**\n\n"
-            answer += f"- Crimes: {stats.get('total_crimes', 0)}\n"
-            answer += f"- Suspects: {stats.get('total_persons', 0)}\n"
-            answer += f"- Organizations: {stats.get('total_organizations', 0)}\n"
-        
-        return answer
+        if stats and stats.get('total_crimes'):
+            return (
+                f"I've retrieved data from the knowledge graph database. The system currently contains "
+                f"**{stats.get('total_crimes', 0)} crime incidents** involving **{stats.get('total_persons', 0)} suspects**. "
+                f"The graph structure enables complex queries about relationships, patterns, and network analysis. "
+                f"Try asking about influential criminals, gang connections, or multi-hop relationship networks."
+            )
+        else:
+            return (
+                "I've connected to the graph database and retrieved information. Please try specific questions like: "
+                "'Show me everyone within 2 degrees of David Rodriguez', 'Which suspects connect to multiple gangs?', "
+                "or 'Who is the most influential criminal?' These questions showcase the knowledge graph's capabilities."
+            )
 
 # Test
 if __name__ == "__main__":
-    print("Testing Conversational Graph RAG")
-    print("="*60)
-    
     rag = GraphRAG()
     
-    # Simulate conversation
-    conversation = []
-    
     questions = [
-        "Which criminal organizations operate in Chicago?",
-        "Tell me more about West Side Crew",
-        "Who are their leaders?",
-        "What crimes have they committed?"
+        "Show me everyone within 2 degrees of David Rodriguez",
+        "Which suspects share connections with multiple gangs?",
+        "Find suspects who committed crimes together but aren't in the same gang"
     ]
     
     for q in questions:
-        print(f"\nQ: {q}")
-        result = rag.ask_with_context(q, conversation)
-        print(f"A: {result['answer'][:200]}...")
-        
-        # Add to conversation
-        conversation.append({"role": "user", "content": q})
-        conversation.append({"role": "assistant", "content": result['answer']})
+        print(f"\n{'='*60}")
+        print(f"Q: {q}")
+        result = rag.ask(q)
+        print(f"A: {result['answer']}")
+        print(f"\nCypher Queries: {len(result['cypher_queries'])}")
