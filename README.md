@@ -12,7 +12,7 @@
 
 *A comprehensive crime investigation platform combining Neo4j graph database, Graph RAG architecture, and advanced network analytics*
 
-[Live App](https://crimeneo4j.streamlit.app/) [Features](#-comprehensive-features) • [Installation](#-detailed-installation) • [Architecture](#-system-architecture) • [Demo](#-demonstration-guide) • [Research](#-research-foundation)
+[Live App](https://crimeneo4j.streamlit.app/) • [Features](#-comprehensive-features) • [Installation](#-detailed-installation) • [Architecture](#-system-architecture) • [Demo](#-demonstration-guide) • [Research](#-research-foundation)
 
 </div>
 
