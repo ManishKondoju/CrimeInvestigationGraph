@@ -375,6 +375,183 @@ LIMIT 15"""
             cypher_queries.append(("Repeat Offenders", query))
             context['repeat_offenders'] = self.db.query(query)
         
+        # WEAPON QUERIES
+        if any(w in q for w in ['weapon', 'gun', 'firearm', 'armed', 'weapons']):
+            try:
+                print("🔫 Fetching weapons...")
+                
+                # All weapons
+                weapons_query = """MATCH (w:Weapon)
+RETURN w.id as id, 
+       w.type as type, 
+       w.make as make, 
+       w.model as model,
+       w.recovered as recovered
+ORDER BY w.type"""
+                
+                cypher_queries.append(("All Weapons", weapons_query))
+                context['all_weapons'] = self.db.query(weapons_query)
+                
+                # Weapon ownership
+                ownership_query = """MATCH (p:Person)-[:OWNS]->(w:Weapon)
+OPTIONAL MATCH (p)-[:MEMBER_OF]->(o:Organization)
+RETURN p.name as owner,
+       p.age as age,
+       o.name as gang,
+       w.type as weapon_type,
+       w.make as make,
+       w.model as model
+ORDER BY o.name, p.name"""
+                
+                cypher_queries.append(("Weapon Ownership", ownership_query))
+                context['weapon_ownership'] = self.db.query(ownership_query)
+                
+                # Weapons used in crimes
+                usage_query = """MATCH (c:Crime)-[:USED_WEAPON]->(w:Weapon)
+RETURN c.type as crime_type,
+       c.id as crime_id,
+       c.severity as severity,
+       w.type as weapon_type,
+       w.make as make,
+       w.model as model
+ORDER BY c.severity, c.date DESC"""
+                
+                cypher_queries.append(("Weapons Used in Crimes", usage_query))
+                context['weapon_usage'] = self.db.query(usage_query)
+                
+                print(f"✅ Found {len(context['all_weapons'])} weapons")
+            except Exception as e:
+                print(f"❌ Weapon error: {e}")
+        
+        # VEHICLE QUERIES
+        if any(w in q for w in ['vehicle', 'car', 'truck', 'van', 'getaway']):
+            try:
+                print("🚗 Fetching vehicles...")
+                
+                # All vehicles
+                vehicles_query = """MATCH (v:Vehicle)
+RETURN v.id as id,
+       v.make as make,
+       v.model as model,
+       v.year as year,
+       v.color as color,
+       v.license_plate as plate,
+       v.reported_stolen as stolen
+ORDER BY v.reported_stolen DESC, v.make"""
+                
+                cypher_queries.append(("All Vehicles", vehicles_query))
+                context['all_vehicles'] = self.db.query(vehicles_query)
+                
+                # Vehicle ownership
+                ownership_query = """MATCH (p:Person)-[:OWNS]->(v:Vehicle)
+RETURN p.name as owner,
+       v.make as make,
+       v.model as model,
+       v.license_plate as plate
+ORDER BY p.name"""
+                
+                cypher_queries.append(("Vehicle Ownership", ownership_query))
+                context['vehicle_ownership'] = self.db.query(ownership_query)
+                
+                # Vehicles in crimes
+                usage_query = """MATCH (c:Crime)-[:INVOLVED_VEHICLE]->(v:Vehicle)
+RETURN c.type as crime_type,
+       c.id as crime_id,
+       v.make as make,
+       v.model as model,
+       v.license_plate as plate
+ORDER BY c.date DESC"""
+                
+                cypher_queries.append(("Vehicles in Crimes", usage_query))
+                context['vehicle_usage'] = self.db.query(usage_query)
+                
+                print(f"✅ Found {len(context['all_vehicles'])} vehicles")
+            except Exception as e:
+                print(f"❌ Vehicle error: {e}")
+        
+        # EVIDENCE QUERIES
+        if any(w in q for w in ['evidence', 'proof', 'forensic', 'clue']):
+            try:
+                print("🔬 Fetching evidence...")
+                
+                # All evidence
+                evidence_query = """MATCH (e:Evidence)
+RETURN e.id as id,
+       e.type as type,
+       e.description as description,
+       e.significance as significance,
+       e.verified as verified
+ORDER BY 
+    CASE e.significance
+        WHEN 'critical' THEN 1
+        WHEN 'high' THEN 2
+        WHEN 'medium' THEN 3
+        ELSE 4
+    END,
+    e.id"""
+                
+                cypher_queries.append(("All Evidence", evidence_query))
+                context['all_evidence'] = self.db.query(evidence_query)
+                
+                # Evidence linking suspects
+                links_query = """MATCH (e:Evidence)-[:LINKS_TO]->(p:Person)
+RETURN e.id as evidence_id,
+       e.description as evidence,
+       e.significance as significance,
+       p.name as suspect
+ORDER BY e.significance, p.name"""
+                
+                cypher_queries.append(("Evidence-Suspect Links", links_query))
+                context['evidence_links'] = self.db.query(links_query)
+                
+                # Evidence by crime
+                crime_evidence_query = """MATCH (c:Crime)-[:HAS_EVIDENCE]->(e:Evidence)
+RETURN c.id as crime_id,
+       c.type as crime_type,
+       e.description as evidence,
+       e.significance as significance
+ORDER BY c.date DESC"""
+                
+                cypher_queries.append(("Crime Evidence", crime_evidence_query))
+                context['crime_evidence'] = self.db.query(crime_evidence_query)
+                
+                print(f"✅ Found {len(context['all_evidence'])} evidence items")
+            except Exception as e:
+                print(f"❌ Evidence error: {e}")
+        
+        # INVESTIGATOR QUERIES
+        if any(w in q for w in ['investigator', 'detective', 'officer', 'assigned']):
+            try:
+                print("👮 Fetching investigators...")
+                
+                investigators_query = """MATCH (i:Investigator)
+RETURN i.id as id,
+       i.name as name,
+       i.badge_number as badge,
+       i.department as department,
+       i.specialization as specialization,
+       i.cases_solved as solved,
+       i.active_cases as active
+ORDER BY i.cases_solved DESC"""
+                
+                cypher_queries.append(("All Investigators", investigators_query))
+                context['all_investigators'] = self.db.query(investigators_query)
+                
+                # Case assignments
+                assignments_query = """MATCH (c:Crime)-[:INVESTIGATED_BY]->(i:Investigator)
+RETURN i.name as investigator,
+       c.id as crime_id,
+       c.type as crime_type,
+       c.status as status
+ORDER BY i.name, c.date DESC"""
+                
+                cypher_queries.append(("Case Assignments", assignments_query))
+                context['case_assignments'] = self.db.query(assignments_query)
+                
+                print(f"✅ Found {len(context['all_investigators'])} investigators")
+            except Exception as e:
+                print(f"❌ Investigator error: {e}")
+        
         return context, cypher_queries
     
     def _extract_person_names(self, question):
@@ -577,6 +754,90 @@ REMEMBER: Flowing paragraphs, not lists!"""
                     f"The largest organization is **{orgs[0]['name']}** with **{orgs[0].get('members', 0)} members** "
                     f"controlling the **{orgs[0].get('territory', 'unknown')}** territory."
                 )
+        
+        # WEAPONS
+        if 'all_weapons' in context:
+            weapons = context['all_weapons']
+            if weapons:
+                weapon_types = {}
+                for w in weapons:
+                    wtype = w.get('type', 'Unknown')
+                    weapon_types[wtype] = weapon_types.get(wtype, 0) + 1
+                
+                top_types = sorted(weapon_types.items(), key=lambda x: x[1], reverse=True)[:3]
+                type_summary = ', '.join([f"**{t[0]}** ({t[1]})" for t in top_types])
+                
+                parts.append(
+                    f"The database contains **{len(weapons)} weapons** in the system. The most common types are {type_summary}. "
+                )
+                
+                # Add ownership info if available
+                if 'weapon_ownership' in context and context['weapon_ownership']:
+                    ownership = context['weapon_ownership']
+                    parts.append(
+                        f"**{len(ownership)} weapons** are linked to known owners, with some suspects possessing multiple firearms. "
+                    )
+                
+                # Add usage info if available
+                if 'weapon_usage' in context and context['weapon_usage']:
+                    usage = context['weapon_usage']
+                    parts.append(
+                        f"**{len(usage)} weapons** have been used in documented crimes, with severity levels ranging from low to critical. "
+                    )
+        
+        # VEHICLES
+        if 'all_vehicles' in context:
+            vehicles = context['all_vehicles']
+            if vehicles:
+                stolen = [v for v in vehicles if v.get('stolen')]
+                
+                parts.append(
+                    f"The system tracks **{len(vehicles)} vehicles** involved in criminal activity. "
+                    f"Of these, **{len(stolen)} are reported stolen**. "
+                )
+                
+                if vehicles[0].get('make'):
+                    top_vehicle = vehicles[0]
+                    parts.append(
+                        f"The most notable is a **{top_vehicle.get('make')} {top_vehicle.get('model')}** "
+                        f"with plate **{top_vehicle.get('license_plate')}**. "
+                    )
+        
+        # EVIDENCE
+        if 'all_evidence' in context:
+            evidence = context['all_evidence']
+            if evidence:
+                critical = [e for e in evidence if e.get('significance') == 'critical']
+                verified = [e for e in evidence if e.get('verified')]
+                
+                parts.append(
+                    f"The evidence database contains **{len(evidence)} items**, of which **{len(critical)} are classified as critical significance** "
+                    f"and **{len(verified)} have been forensically verified**. "
+                )
+                
+                if 'evidence_links' in context and context['evidence_links']:
+                    links = context['evidence_links']
+                    parts.append(
+                        f"**{len(links)} evidence items** are directly linked to suspects through forensic analysis. "
+                    )
+        
+        # INVESTIGATORS
+        if 'all_investigators' in context:
+            investigators = context['all_investigators']
+            if investigators:
+                total_solved = sum(i.get('cases_solved', 0) for i in investigators)
+                total_active = sum(i.get('active_cases', 0) for i in investigators)
+                
+                parts.append(
+                    f"The investigation team includes **{len(investigators)} detectives** who have collectively solved **{total_solved} cases** "
+                    f"with **{total_active} currently active investigations**. "
+                )
+                
+                if investigators[0].get('cases_solved'):
+                    top_inv = investigators[0]
+                    parts.append(
+                        f"The lead investigator is **{top_inv['name']}** with **{top_inv['cases_solved']} solved cases**. "
+                    )
         
         # Combine
         if parts:

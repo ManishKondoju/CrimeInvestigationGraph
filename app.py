@@ -7,7 +7,8 @@ from graph_algorithms import render_graph_algorithms_page
 from geo_mapping import render_geographic_page
 from timeline_viz import render_timeline_interface
 from enhanced_dashboard import render_enhanced_dashboard
-from schema_visualizer import render_schema_page  # NEW: Schema visualization
+from schema_visualizer import render_schema_page
+from about_page import render_about_page  # NEW: About page
 import plotly.express as px
 import plotly.graph_objects as go
 from datetime import datetime
@@ -532,6 +533,12 @@ with st.sidebar:
     
     st.markdown("---")
     
+    if st.button("ℹ️ About", use_container_width=True, type="primary" if st.session_state.get('page') == 'About' else "secondary"):
+        st.session_state.page = 'About'
+        st.rerun()
+    
+    st.markdown("---")
+    
     st.markdown("### 📊 System Status")
     
     try:
@@ -788,6 +795,12 @@ elif current_page == 'Graph Schema':
     render_schema_page(db)
 
 # ========================================
+# PAGE: ABOUT
+# ========================================
+elif current_page == 'About':
+    render_about_page()
+
+# ========================================
 # DEFAULT PAGE
 # ========================================
 else:
@@ -807,8 +820,5 @@ st.markdown("""
     <p style='color: #718096; font-size: 0.85rem; margin-top: 12px;'>
         DAMG 7374 - Knowledge Graphs with GenAI | Northeastern University
     </p>
-    <div style='margin-top: 16px; display: flex; justify-content: center; gap: 16px;'>
-        <span class='status-badge status-online'>Production Ready</span>
-    </div>
 </div>
 """, unsafe_allow_html=True)
