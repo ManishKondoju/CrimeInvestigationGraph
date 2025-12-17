@@ -9,7 +9,7 @@
 
 **An intelligent crime investigation assistant powered by Graph RAG technology**
 
-[Demo](#-demo) • [Installation](#-installation) • [Usage](#-usage) • [Architecture](#-architecture) • [Research](#-research-foundation)
+[Live App](https://crimeneo4j.streamlit.app/) • [Installation](#-installation) • [Usage](#-usage) • [Architecture](#-architecture) • [Research](#-research-foundation)
 
 </div>
 
