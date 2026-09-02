@@ -12,6 +12,10 @@ import { NextRequest } from "next/server";
 
 const BACKEND_URL = process.env.BACKEND_URL ?? "http://localhost:8000";
 const API_KEY = process.env.API_KEY;
+// Only meaningful in local dev - in any real deployment an unset BACKEND_URL
+// means every request dies at localhost, so surface that in the error below
+// rather than emitting a bare "fetch failed".
+const BACKEND_URL_IS_DEFAULT = !process.env.BACKEND_URL;
 
 // Streamed/download responses (CSV + schema exports) must keep their
 // headers; these are the ones worth passing back through.
@@ -38,9 +42,21 @@ async function proxy(req: NextRequest, path: string[]) {
       cache: "no-store",
     });
   } catch (e) {
-    // Backend unreachable (cold start on Render free tier, or down).
+    // Backend unreachable: cold start on Render's free tier, backend down,
+    // or - most commonly on a fresh deploy - BACKEND_URL simply not set.
+    // Report the origin we actually tried (never the API key) so the cause
+    // is obvious from the response alone.
+    const origin = new URL(BACKEND_URL).origin;
+    const hint = BACKEND_URL_IS_DEFAULT
+      ? " (BACKEND_URL is not set, so this fell back to localhost - set it in the deployment environment and redeploy)"
+      : "";
     return Response.json(
-      { detail: `Upstream API unreachable: ${(e as Error).message}` },
+      {
+        detail: `Upstream API unreachable at ${origin}: ${(e as Error).message}${hint}`,
+        backend: origin,
+        backend_url_configured: !BACKEND_URL_IS_DEFAULT,
+        api_key_configured: !!API_KEY,
+      },
       { status: 502 },
     );
   }
