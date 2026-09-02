@@ -2,10 +2,15 @@
 
 import { useState, useEffect, useMemo, useCallback, useRef } from "react";
 import dynamic from "next/dynamic";
-import Link from "next/link";
-import { ArrowLeft, CircleNotch, ShareNetwork } from "@phosphor-icons/react";
+
 import { getEntityTypes, getEntities, getNetworkGraph } from "@/lib/api";
 import type { EntityOption, NetworkEntityType, NetworkGraph } from "@/lib/types";
+import {
+  AnimatedNumber,
+  LoadingBlocks,
+  PageHeader,
+  Panel,
+} from "@/components/ui/motion";
 
 // Network Visualization page - step 13 of the rebuild. Parity target:
 // network_viz.py's NetworkVisualization.render() - entity-type dropdown,
@@ -30,7 +35,10 @@ const NODE_RADIUS: Record<string, number> = {
 };
 const DEFAULT_RADIUS = 5;
 
+// react-force-graph types its accessors against an index-signature object,
+// so our narrower shape has to include one to be assignable.
 interface NodeObj {
+  [others: string]: unknown;
   id?: string | number;
   label?: string | null;
   type?: string;
@@ -38,20 +46,9 @@ interface NodeObj {
   y?: number;
 }
 
-function DoubleBezel({
-  children,
-  className = "",
-}: {
-  children: React.ReactNode;
-  className?: string;
-}) {
-  return (
-    <div className={`rounded-[1.5rem] bg-white/5 p-1.5 ring-1 ring-white/10 ${className}`}>
-      <div className="h-full rounded-[calc(1.5rem-0.375rem)] bg-zinc-950/80 shadow-[inset_0_1px_1px_rgba(255,255,255,0.08)] backdrop-blur-2xl">
-        {children}
-      </div>
-    </div>
-  );
+interface LinkObj {
+  [others: string]: unknown;
+  label?: string;
 }
 
 export default function NetworkPage() {
@@ -80,21 +77,42 @@ export default function NetworkPage() {
   // Reload the specific-entity dropdown whenever the type changes.
   useEffect(() => {
     if (!selectedType) return;
-    setSelectedId(VIEW_ALL);
-    getEntities(selectedType)
-      .then(setEntities)
-      .catch((e) => setError(e.message));
+    let cancelled = false;
+    (async () => {
+      setSelectedId(VIEW_ALL);
+      try {
+        const rows = await getEntities(selectedType);
+        if (!cancelled) setEntities(rows);
+      } catch (e) {
+        if (!cancelled) setError((e as Error).message);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
   }, [selectedType]);
 
-  // Reload the graph whenever type or specific entity changes.
+  // Reload the graph whenever type or specific entity changes. The
+  // cancelled flag stops a slow earlier response from clobbering a newer
+  // selection's data.
   useEffect(() => {
     if (!selectedType) return;
-    setLoading(true);
-    setError(null);
-    getNetworkGraph(selectedType, selectedId === VIEW_ALL ? null : selectedId)
-      .then(setGraph)
-      .catch((e) => setError(e.message))
-      .finally(() => setLoading(false));
+    let cancelled = false;
+    (async () => {
+      setLoading(true);
+      setError(null);
+      try {
+        const data = await getNetworkGraph(selectedType, selectedId === VIEW_ALL ? null : selectedId);
+        if (!cancelled) setGraph(data);
+      } catch (e) {
+        if (!cancelled) setError((e as Error).message);
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
   }, [selectedType, selectedId]);
 
   useEffect(() => {
@@ -115,104 +133,90 @@ export default function NetworkPage() {
     [graph],
   );
 
-  const getNodeColor = useCallback((node: { type?: string }) => colors[node.type ?? ""] ?? "#64748b", [colors]);
+  const getNodeColor = useCallback(
+    (node: NodeObj) => colors[node.type ?? ""] ?? "#64748b",
+    [colors],
+  );
 
   const selectedName = entities.find((e) => String(e.id) === selectedId)?.name;
 
   return (
-    <main className="relative flex min-h-[100dvh] flex-col overflow-hidden px-4 py-10 sm:px-8">
-      <div className="pointer-events-none fixed inset-0 -z-10">
-        <div className="absolute left-1/4 top-0 h-[36rem] w-[36rem] -translate-x-1/2 rounded-full bg-violet-600/15 blur-[120px]" />
-        <div className="absolute right-0 top-1/2 h-[28rem] w-[28rem] translate-x-1/3 rounded-full bg-emerald-500/10 blur-[120px]" />
-      </div>
+    <main className="blueprint-grid min-h-[100dvh] px-4 py-8 sm:px-8">
+      <div className="mx-auto flex w-full max-w-[1400px] flex-1 flex-col">
+        <PageHeader
+          unit="D-02"
+          title="Network"
+          subtitle="FORCE-DIRECTED ASSOCIATION GRAPH // ENTITY LINK ANALYSIS"
+          right={
+            <span className="telemetry text-phosphor-faint">
+              <AnimatedNumber value={graph?.nodes.length ?? 0} className="text-phosphor" /> NODES
+              {" / "}
+              <AnimatedNumber value={graph?.edges.length ?? 0} className="text-phosphor" /> EDGES
+            </span>
+          }
+        />
 
-      <div className="mx-auto flex w-full max-w-6xl flex-1 flex-col">
-        <div className="mb-8 flex items-center gap-4">
-          <Link
-            href="/"
-            className="flex h-9 w-9 items-center justify-center rounded-full bg-white/5 ring-1 ring-white/10 transition-transform duration-500 ease-[cubic-bezier(0.32,0.72,0,1)] hover:-translate-x-0.5"
-          >
-            <ArrowLeft weight="light" className="h-4 w-4 text-zinc-400" />
-          </Link>
-          <div>
-            <h1 className="text-lg font-semibold tracking-tight text-zinc-50">
-              Network Visualization
-            </h1>
-            <p className="text-xs text-zinc-500">
-              Force-directed graph of criminal network connections
-            </p>
-          </div>
-        </div>
-
-        <div className="mb-6 flex flex-wrap items-center gap-4">
-          <div className="flex items-center gap-2">
-            <label className="text-xs font-medium text-zinc-500">Entity Type</label>
+        <div className="mb-3 grid gap-px border border-rule bg-rule md:grid-cols-2">
+          <label className="flex items-center gap-3 bg-substrate-raised px-3 py-2">
+            <span className="telemetry w-24 shrink-0 text-phosphor-faint">ENTITY TYPE</span>
             <select
               value={selectedType ?? ""}
               onChange={(e) => setSelectedType(e.target.value as NetworkEntityType)}
-              className="rounded-xl bg-white/5 px-3 py-2 text-sm text-zinc-100 ring-1 ring-white/10 focus:outline-none"
+              className="w-full border border-rule bg-substrate px-2 py-1.5 text-[12px] text-phosphor focus:border-hazard focus:outline-none"
             >
               {entityTypes.map((t) => (
-                <option key={t} value={t} className="bg-zinc-950">
-                  {t}
+                <option key={t} value={t}>
+                  {t.toUpperCase()}
                 </option>
               ))}
             </select>
-          </div>
+          </label>
 
-          <div className="flex items-center gap-2">
-            <label className="text-xs font-medium text-zinc-500">Specific {selectedType}</label>
+          <label className="flex items-center gap-3 bg-substrate-raised px-3 py-2">
+            <span className="telemetry w-24 shrink-0 text-phosphor-faint">SUBJECT</span>
             <select
               value={selectedId}
               onChange={(e) => setSelectedId(e.target.value)}
-              className="min-w-48 rounded-xl bg-white/5 px-3 py-2 text-sm text-zinc-100 ring-1 ring-white/10 focus:outline-none"
+              className="w-full border border-rule bg-substrate px-2 py-1.5 text-[12px] text-phosphor focus:border-hazard focus:outline-none"
             >
-              <option value={VIEW_ALL} className="bg-zinc-950">
-                - View All -
-              </option>
+              <option value={VIEW_ALL}>[ ALL ]</option>
               {entities.map((e) => (
-                <option key={String(e.id)} value={String(e.id)} className="bg-zinc-950">
-                  {String(e.name).slice(0, 50)}
+                <option key={String(e.id)} value={String(e.id)}>
+                  {String(e.name).slice(0, 50).toUpperCase()}
                 </option>
               ))}
             </select>
-          </div>
-
-          <div className="ml-auto flex gap-3 text-xs text-zinc-500">
-            <span className="rounded-full bg-white/5 px-3 py-1.5 ring-1 ring-white/10">
-              {graph?.nodes.length ?? 0} nodes
-            </span>
-            <span className="rounded-full bg-white/5 px-3 py-1.5 ring-1 ring-white/10">
-              {graph?.edges.length ?? 0} edges
-            </span>
-          </div>
+          </label>
         </div>
 
-        <p className="mb-4 text-xs text-zinc-500">
-          {selectedId === VIEW_ALL
-            ? `Showing: All ${selectedType}s and their connections`
-            : `Showing: ${selectedName ?? selectedId} and connected entities`}
-        </p>
+        <div className="telemetry mb-3 flex items-center justify-between text-phosphor-faint">
+          <span>
+            {">>>"} SCOPE /{" "}
+            {selectedId === VIEW_ALL
+              ? `ALL ${String(selectedType).toUpperCase()} ENTITIES`
+              : String(selectedName ?? selectedId).toUpperCase()}
+          </span>
+          <span>DRAG // SCROLL TO ZOOM</span>
+        </div>
 
         {error && (
-          <div className="mb-4 rounded-2xl bg-red-500/10 px-4 py-2.5 text-xs text-red-300 ring-1 ring-red-500/20">
-            {error}
+          <div className="mb-3 border border-hazard bg-substrate-raised p-3">
+            <div className="telemetry text-hazard">{"// FAULT"}</div>
+            <div className="mt-1 text-[13px] text-phosphor-dim">{error}</div>
           </div>
         )}
 
-        <DoubleBezel className="relative flex-1">
-          <div ref={containerRef} className="relative h-[640px] w-full overflow-hidden rounded-[calc(1.5rem-0.375rem)]">
+        <Panel label="ASSOCIATION GRAPH" right={loading ? "SYNCING" : "RENDERED"} className="relative flex-1">
+          <div ref={containerRef} className="relative h-[640px] w-full overflow-hidden">
             {loading && (
-              <div className="absolute inset-0 z-10 flex items-center justify-center gap-2 bg-zinc-950/60 text-xs text-zinc-400 backdrop-blur-sm">
-                <CircleNotch weight="bold" className="h-4 w-4 animate-spin" />
-                Loading network...
+              <div className="absolute inset-0 z-10 flex items-center justify-center bg-substrate/70">
+                <LoadingBlocks label="BUILDING GRAPH" />
               </div>
             )}
 
             {!loading && graph && graph.nodes.length === 0 && (
-              <div className="flex h-full flex-col items-center justify-center gap-2 text-zinc-600">
-                <ShareNetwork weight="light" className="h-8 w-8" />
-                <p className="text-sm">No data loaded for {selectedType}</p>
+              <div className="telemetry flex h-full items-center justify-center text-phosphor-faint">
+                NO RECORDS // {String(selectedType).toUpperCase()}
               </div>
             )}
 
@@ -231,17 +235,17 @@ export default function NetworkPage() {
                   ctx.fillStyle = getNodeColor(node);
                   ctx.fill();
                   ctx.lineWidth = 1.5 / globalScale;
-                  ctx.strokeStyle = "#050505";
+                  ctx.strokeStyle = "#0a0a0a";
                   ctx.stroke();
 
                   const raw = String(node.label ?? node.id ?? "");
                   const label = raw.length > 16 ? `${raw.slice(0, 16)}...` : raw;
                   const fontSize = 11 / globalScale;
-                  ctx.font = `600 ${fontSize}px system-ui, sans-serif`;
+                  ctx.font = `${fontSize}px "JetBrains Mono", ui-monospace, monospace`;
                   ctx.textAlign = "center";
                   ctx.textBaseline = "top";
-                  ctx.fillStyle = "#e2e8f0";
-                  ctx.fillText(label, node.x ?? 0, (node.y ?? 0) + radius + 3);
+                  ctx.fillStyle = "#eaeaea";
+                  ctx.fillText(label.toUpperCase(), node.x ?? 0, (node.y ?? 0) + radius + 3);
                 }}
                 nodePointerAreaPaint={(node: NodeObj, color, ctx) => {
                   const radius = NODE_RADIUS[node.type ?? ""] ?? DEFAULT_RADIUS;
@@ -250,24 +254,27 @@ export default function NetworkPage() {
                   ctx.arc(node.x ?? 0, node.y ?? 0, radius + 2, 0, 2 * Math.PI);
                   ctx.fill();
                 }}
-                linkLabel={(l: { label?: string }) => l.label ?? ""}
-                linkColor={() => "rgba(148, 163, 184, 0.35)"}
+                linkLabel={(l: LinkObj) => l.label ?? ""}
+                linkColor={() => "rgba(234, 234, 234, 0.22)"}
                 linkDirectionalParticles={0}
                 cooldownTicks={100}
               />
             )}
           </div>
-        </DoubleBezel>
+        </Panel>
 
         {Object.keys(colors).length > 0 && (
-          <div className="mt-4 flex flex-wrap gap-3">
+          <div className="mt-3 flex flex-wrap gap-x-5 gap-y-2 border-t border-rule pt-3">
             {Object.entries(colors)
               .filter(([type]) => graph?.nodes.some((n) => n.type === type))
               .map(([type, color]) => (
-                <div key={type} className="flex items-center gap-1.5 text-xs text-zinc-400">
-                  <span className="h-2.5 w-2.5 rounded-full" style={{ backgroundColor: color }} />
+                <span key={type} className="telemetry flex items-center gap-2 text-phosphor-dim">
+                  <span className="h-2.5 w-2.5" style={{ backgroundColor: color }} />
                   {type}
-                </div>
+                  <span className="text-phosphor-faint">
+                    {graph?.nodes.filter((n) => n.type === type).length}
+                  </span>
+                </span>
               ))}
           </div>
         )}

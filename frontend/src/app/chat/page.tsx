@@ -1,49 +1,29 @@
 "use client";
 
 import { useState, useRef, useEffect } from "react";
-import Link from "next/link";
-import {
-  ArrowLeft,
-  PaperPlaneRight,
-  CaretDown,
-  Code,
-  Database,
-  CircleNotch,
-} from "@phosphor-icons/react";
 import { motion, AnimatePresence } from "motion/react";
 import { postChat, ApiError } from "@/lib/api";
 import type { ChatTurn } from "@/lib/types";
+import {
+  EASE,
+  LoadingBlocks,
+  PageHeader,
+  Panel,
+  TerminalButton,
+} from "@/components/ui/motion";
 
-// AI Assistant page - step 12 of the FastAPI + Next.js rebuild. Parity target:
-// app.py's chat_message loop (app.py:926-949) - same two-level transparency
-// panel (numbered Cypher blocks, then a nested raw-JSON section), same quick
-// question shortcuts (app.py:872-897). Visual language matches src/app/page.tsx
-// (Ethereal Glass + Double-Bezel, per the high-end-visual-design skill).
+// AI Assistant terminal. Parity target: app.py's chat loop - same quick
+// queries and the same two-level transparency panel (numbered Cypher, then
+// raw JSON), restyled as an interrogation console.
 
 const QUICK_QUESTIONS = [
-  { label: "Database stats", question: "Give me database statistics" },
-  { label: "List gangs", question: "Which criminal organizations operate in Chicago?" },
-  { label: "Repeat offenders", question: "Who are the repeat offenders with multiple crimes?" },
-  { label: "Armed suspects", question: "Show me armed gang members" },
-  { label: "Crime hotspots", question: "Which locations have the most crimes?" },
-  { label: "Investigators", question: "Show all investigators and their workload" },
+  { code: "Q-01", label: "DATABASE STATS", question: "Give me database statistics" },
+  { code: "Q-02", label: "ORGANIZATIONS", question: "Which criminal organizations operate in Chicago?" },
+  { code: "Q-03", label: "REPEAT OFFENDERS", question: "Who are the repeat offenders with multiple crimes?" },
+  { code: "Q-04", label: "ARMED SUSPECTS", question: "Show me armed gang members" },
+  { code: "Q-05", label: "HOTSPOTS", question: "Which locations have the most crimes?" },
+  { code: "Q-06", label: "INVESTIGATORS", question: "Show all investigators and their workload" },
 ];
-
-function DoubleBezel({
-  children,
-  className = "",
-}: {
-  children: React.ReactNode;
-  className?: string;
-}) {
-  return (
-    <div className={`rounded-[1.5rem] bg-white/5 p-1.5 ring-1 ring-white/10 ${className}`}>
-      <div className="h-full rounded-[calc(1.5rem-0.375rem)] bg-zinc-950/80 shadow-[inset_0_1px_1px_rgba(255,255,255,0.08)] backdrop-blur-2xl">
-        {children}
-      </div>
-    </div>
-  );
-}
 
 function TransparencyPanel({ turn }: { turn: ChatTurn }) {
   const [open, setOpen] = useState(false);
@@ -52,76 +32,68 @@ function TransparencyPanel({ turn }: { turn: ChatTurn }) {
   if (!turn.cypher_queries?.length) return null;
 
   return (
-    <div className="mt-3">
+    <div className="mt-2 border-t border-rule">
       <button
         onClick={() => setOpen((v) => !v)}
-        className="group flex items-center gap-2 rounded-full bg-white/5 px-3 py-1.5 text-xs font-medium text-zinc-400 ring-1 ring-white/10 transition-colors duration-500 hover:text-zinc-200"
+        className="telemetry flex w-full items-center justify-between px-3 py-2 text-phosphor-faint transition-colors duration-150 hover:text-hazard"
       >
-        <Code weight="light" className="h-3.5 w-3.5" />
-        View Cypher Queries
-        <CaretDown
-          weight="bold"
-          className={`h-3 w-3 transition-transform duration-500 ease-[cubic-bezier(0.32,0.72,0,1)] ${open ? "rotate-180" : ""}`}
-        />
+        <span>
+          [ {open ? "-" : "+"} ] CYPHER TRACE // {turn.cypher_queries.length} QUERIES
+        </span>
+        <span>{open ? "COLLAPSE" : "EXPAND"}</span>
       </button>
 
       <AnimatePresence initial={false}>
         {open && (
           <motion.div
-            initial={{ opacity: 0, height: 0 }}
-            animate={{ opacity: 1, height: "auto" }}
-            exit={{ opacity: 0, height: 0 }}
-            transition={{ duration: 0.4, ease: [0.16, 1, 0.3, 1] }}
-            className="overflow-hidden"
+            initial={{ height: 0, opacity: 0 }}
+            animate={{ height: "auto", opacity: 1 }}
+            exit={{ height: 0, opacity: 0 }}
+            transition={{ duration: 0.25, ease: EASE }}
+            className="overflow-hidden border-t border-rule"
           >
-            <DoubleBezel className="mt-2">
-              <div className="space-y-3 p-4">
-                <p className="text-[10px] uppercase tracking-[0.2em] text-zinc-500">
-                  Graph queries executed
-                </p>
-                {turn.cypher_queries.map((q, i) => (
-                  <div key={i}>
-                    <p className="mb-1 text-xs font-medium text-zinc-300">
-                      {i + 1}. {q.name}
-                    </p>
-                    <pre className="overflow-x-auto rounded-xl bg-black/40 p-3 font-mono text-[11px] leading-relaxed text-emerald-300/90 ring-1 ring-white/5">
-                      {q.cypher}
-                    </pre>
+            <div className="space-y-3 p-3">
+              {turn.cypher_queries.map((q, i) => (
+                <div key={i} className="border border-rule">
+                  <div className="telemetry flex items-center justify-between border-b border-rule bg-substrate px-2 py-1 text-phosphor-faint">
+                    <span>
+                      {String(i + 1).padStart(2, "0")} / {q.name}
+                    </span>
+                    <span className="text-hazard">CYPHER</span>
                   </div>
-                ))}
+                  <pre className="overflow-x-auto bg-substrate p-2.5 text-[11px] leading-relaxed text-terminal">
+                    {q.cypher}
+                  </pre>
+                </div>
+              ))}
 
-                <button
-                  onClick={() => setShowRaw((v) => !v)}
-                  className="flex items-center gap-2 pt-1 text-xs font-medium text-zinc-500 transition-colors duration-500 hover:text-zinc-300"
-                >
-                  <Database weight="light" className="h-3.5 w-3.5" />
-                  Raw Data
-                  <CaretDown
-                    weight="bold"
-                    className={`h-3 w-3 transition-transform duration-500 ease-[cubic-bezier(0.32,0.72,0,1)] ${showRaw ? "rotate-180" : ""}`}
-                  />
-                </button>
+              <button
+                onClick={() => setShowRaw((v) => !v)}
+                className="telemetry text-phosphor-faint transition-colors duration-150 hover:text-hazard"
+              >
+                [ {showRaw ? "-" : "+"} ] RAW RECORDSET
+              </button>
 
-                {showRaw && turn.context && (
-                  <div className="space-y-3">
-                    {Object.entries(turn.context).map(([key, value]) => {
-                      if (!value || (Array.isArray(value) && value.length === 0)) return null;
-                      const preview = Array.isArray(value) ? value.slice(0, 3) : value;
-                      return (
-                        <div key={key}>
-                          <p className="mb-1 text-xs font-medium text-zinc-300">
-                            {key.replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase())}
-                          </p>
-                          <pre className="overflow-x-auto rounded-xl bg-black/40 p-3 font-mono text-[11px] leading-relaxed text-zinc-400 ring-1 ring-white/5">
-                            {JSON.stringify(preview, null, 2)}
-                          </pre>
+              {showRaw && turn.context && (
+                <div className="space-y-2">
+                  {Object.entries(turn.context).map(([key, value]) => {
+                    if (!value || (Array.isArray(value) && value.length === 0)) return null;
+                    const preview = Array.isArray(value) ? value.slice(0, 3) : value;
+                    return (
+                      <div key={key} className="border border-rule">
+                        <div className="telemetry border-b border-rule bg-substrate px-2 py-1 text-phosphor-faint">
+                          {key.replace(/_/g, " ")}
+                          {Array.isArray(value) && ` // ${value.length} ROWS`}
                         </div>
-                      );
-                    })}
-                  </div>
-                )}
-              </div>
-            </DoubleBezel>
+                        <pre className="max-h-56 overflow-auto bg-substrate p-2.5 text-[11px] leading-relaxed text-phosphor-dim">
+                          {JSON.stringify(preview, null, 2)}
+                        </pre>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
           </motion.div>
         )}
       </AnimatePresence>
@@ -169,80 +141,99 @@ export default function ChatPage() {
   }
 
   return (
-    <main className="relative flex min-h-[100dvh] flex-col overflow-hidden px-4 py-10 sm:px-8">
-      <div className="pointer-events-none fixed inset-0 -z-10">
-        <div className="absolute left-1/4 top-0 h-[36rem] w-[36rem] -translate-x-1/2 rounded-full bg-violet-600/15 blur-[120px]" />
-        <div className="absolute right-0 top-1/2 h-[28rem] w-[28rem] translate-x-1/3 rounded-full bg-emerald-500/10 blur-[120px]" />
-      </div>
+    <main className="blueprint-grid min-h-[100dvh] px-4 py-8 sm:px-8">
+      <div className="mx-auto flex w-full max-w-4xl flex-1 flex-col">
+        <PageHeader
+          unit="D-01"
+          title="AI Assistant"
+          subtitle="NATURAL-LANGUAGE INTERROGATION // LANGGRAPH AGENT OVER NEO4J"
+          right={
+            <span className="telemetry text-phosphor-faint">
+              EXCHANGES / {String(turns.filter((t) => t.role === "user").length).padStart(3, "0")}
+            </span>
+          }
+        />
 
-      <div className="mx-auto flex w-full max-w-3xl flex-1 flex-col">
-        <div className="mb-8 flex items-center gap-4">
-          <Link
-            href="/"
-            className="flex h-9 w-9 items-center justify-center rounded-full bg-white/5 ring-1 ring-white/10 transition-transform duration-500 ease-[cubic-bezier(0.32,0.72,0,1)] hover:-translate-x-0.5"
-          >
-            <ArrowLeft weight="light" className="h-4 w-4 text-zinc-400" />
-          </Link>
-          <div>
-            <h1 className="text-lg font-semibold tracking-tight text-zinc-50">
-              AI Investigation Assistant
-            </h1>
-            <p className="text-xs text-zinc-500">
-              Powered by a LangGraph agent over the Neo4j knowledge graph
-            </p>
-          </div>
-        </div>
-
-        {turns.length === 0 && (
-          <div className="mb-8 grid grid-cols-2 gap-3 sm:grid-cols-3">
-            {QUICK_QUESTIONS.map((q) => (
-              <button
-                key={q.label}
-                onClick={() => send(q.question)}
-                className="rounded-2xl bg-white/5 px-4 py-3 text-left text-xs font-medium text-zinc-300 ring-1 ring-white/10 transition-colors duration-500 hover:bg-white/10 hover:text-zinc-50"
-              >
-                {q.label}
-              </button>
-            ))}
-          </div>
-        )}
-
-        <div className="flex-1 space-y-5">
-          {turns.map((turn, i) => (
+        <AnimatePresence>
+          {turns.length === 0 && (
             <motion.div
-              key={i}
-              initial={{ opacity: 0, y: 12 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.5, ease: [0.16, 1, 0.3, 1] }}
-              className={turn.role === "user" ? "flex justify-end" : "flex justify-start"}
+              exit={{ opacity: 0, y: -8 }}
+              transition={{ duration: 0.2 }}
+              className="mb-5"
             >
-              {turn.role === "user" ? (
-                <div className="max-w-[80%] rounded-2xl bg-zinc-50 px-4 py-2.5 text-sm text-zinc-950">
+              <div className="telemetry mb-2 text-phosphor-faint">[ PRESET QUERIES ]</div>
+              <div className="grid gap-px border border-rule bg-rule sm:grid-cols-2 lg:grid-cols-3">
+                {QUICK_QUESTIONS.map((q, i) => (
+                  <motion.button
+                    key={q.code}
+                    onClick={() => send(q.question)}
+                    initial={{ opacity: 0 }}
+                    animate={{ opacity: 1 }}
+                    transition={{ duration: 0.25, delay: i * 0.04 }}
+                    className="group bg-substrate-raised p-3 text-left transition-colors duration-150 hover:bg-hazard"
+                  >
+                    <div className="telemetry text-phosphor-faint group-hover:text-substrate">
+                      {q.code}
+                    </div>
+                    <div className="telemetry mt-1 text-phosphor group-hover:text-substrate">
+                      {q.label}
+                    </div>
+                  </motion.button>
+                ))}
+              </div>
+            </motion.div>
+          )}
+        </AnimatePresence>
+
+        <div className="flex-1 space-y-3">
+          {turns.map((turn, i) =>
+            turn.role === "user" ? (
+              <motion.div
+                key={i}
+                initial={{ opacity: 0, x: 12 }}
+                animate={{ opacity: 1, x: 0 }}
+                transition={{ duration: 0.3, ease: EASE }}
+                className="flex justify-end"
+              >
+                <div className="max-w-[85%] border border-hazard bg-hazard px-3 py-2 text-[13px] text-substrate">
+                  <span className="telemetry mr-2 opacity-70">QUERY {">>"}</span>
                   {turn.content}
                 </div>
-              ) : (
-                <div className="max-w-[85%]">
-                  <DoubleBezel>
-                    <div className="whitespace-pre-wrap p-4 text-sm leading-relaxed text-zinc-200">
-                      {renderMarkdownBold(turn.content)}
-                    </div>
-                  </DoubleBezel>
+              </motion.div>
+            ) : (
+              <motion.div
+                key={i}
+                initial={{ opacity: 0, x: -12 }}
+                animate={{ opacity: 1, x: 0 }}
+                transition={{ duration: 0.3, ease: EASE }}
+              >
+                <Panel label={`RESPONSE / ${String(Math.ceil((i + 1) / 2)).padStart(2, "0")}`}>
+                  <div className="whitespace-pre-wrap p-3 text-[13px] leading-relaxed text-phosphor-dim">
+                    {renderMarkdownBold(turn.content)}
+                  </div>
                   <TransparencyPanel turn={turn} />
-                </div>
-              )}
-            </motion.div>
-          ))}
-
-          {loading && (
-            <div className="flex items-center gap-2 text-xs text-zinc-500">
-              <CircleNotch weight="bold" className="h-3.5 w-3.5 animate-spin" />
-              Investigating...
-            </div>
+                </Panel>
+              </motion.div>
+            ),
           )}
 
+          <AnimatePresence>
+            {loading && (
+              <motion.div
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                exit={{ opacity: 0 }}
+                className="border border-rule bg-substrate-raised p-3"
+              >
+                <LoadingBlocks label="INTERROGATING GRAPH // GENERATING CYPHER" />
+              </motion.div>
+            )}
+          </AnimatePresence>
+
           {error && (
-            <div className="rounded-2xl bg-red-500/10 px-4 py-2.5 text-xs text-red-300 ring-1 ring-red-500/20">
-              {error}
+            <div className="border border-hazard bg-substrate-raised p-3">
+              <div className="telemetry text-hazard">{"// FAULT"}</div>
+              <div className="mt-1 text-[13px] text-phosphor-dim">{error}</div>
             </div>
           )}
 
@@ -254,34 +245,34 @@ export default function ChatPage() {
             e.preventDefault();
             send(input);
           }}
-          className="sticky bottom-6 mt-6 flex items-center gap-2 rounded-full bg-white/5 p-1.5 ring-1 ring-white/10 backdrop-blur-2xl"
+          className="sticky bottom-4 mt-5 flex border border-rule bg-substrate-raised"
         >
+          <span className="telemetry hidden items-center border-r border-rule px-3 text-hazard sm:flex">
+            {">"}
+          </span>
           <input
             value={input}
             onChange={(e) => setInput(e.target.value)}
-            placeholder="Ask about crimes, suspects, gangs, evidence..."
-            className="flex-1 bg-transparent px-4 py-2 text-sm text-zinc-100 placeholder:text-zinc-600 focus:outline-none"
+            placeholder="ENTER QUERY..."
+            className="flex-1 bg-transparent px-3 py-3 text-[13px] text-phosphor placeholder:text-phosphor-faint focus:outline-none"
           />
-          <button
-            type="submit"
-            disabled={loading || !input.trim()}
-            className="flex h-9 w-9 items-center justify-center rounded-full bg-zinc-50 text-zinc-950 transition-transform duration-500 ease-[cubic-bezier(0.32,0.72,0,1)] disabled:opacity-30"
-          >
-            <PaperPlaneRight weight="bold" className="h-4 w-4" />
-          </button>
+          <TerminalButton type="submit" disabled={loading || !input.trim()} accent className="border-y-0 border-r-0">
+            TRANSMIT
+          </TerminalButton>
         </form>
       </div>
     </main>
   );
 }
 
-// Minimal **bold** -> <strong> renderer, matching the agent's markdown-lite
-// output style (see langgraph_agent.py's ANSWER_SYSTEM_PROMPT).
+// Minimal **bold** -> <strong>, matching the agent's markdown-lite output
+// (see langgraph_agent.py's ANSWER_SYSTEM_PROMPT). Bold terms are the
+// operative facts, so they get phosphor-white against dimmed body copy.
 function renderMarkdownBold(text: string) {
   const parts = text.split(/(\*\*[^*]+\*\*)/g);
   return parts.map((part, i) =>
     part.startsWith("**") && part.endsWith("**") ? (
-      <strong key={i} className="font-semibold text-zinc-50">
+      <strong key={i} className="font-normal text-phosphor underline decoration-hazard decoration-1 underline-offset-2">
         {part.slice(2, -2)}
       </strong>
     ) : (

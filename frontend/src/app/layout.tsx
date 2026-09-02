@@ -1,29 +1,37 @@
 import type { Metadata } from "next";
-import { Geist, Geist_Mono } from "next/font/google";
+import { JetBrains_Mono, Archivo_Black } from "next/font/google";
 import "./globals.css";
 
-const geistSans = Geist({
-  variable: "--font-geist-sans",
+// Micro-typography: all telemetry, metadata, tables, IDs, coordinates.
+const jetbrainsMono = JetBrains_Mono({
+  variable: "--font-jetbrains-mono",
   subsets: ["latin"],
 });
 
-const geistMono = Geist_Mono({
-  variable: "--font-geist-mono",
+// Macro-typography: structural headers only, always uppercase.
+const archivoBlack = Archivo_Black({
+  variable: "--font-archivo-black",
+  weight: "400",
   subsets: ["latin"],
 });
 
 export const metadata: Metadata = {
-  title: "CrimeGraphRAG",
-  description: "Crime investigation platform powered by a Neo4j knowledge graph and a LangGraph agent",
+  title: "CRIMEGRAPHRAG // TACTICAL INTELLIGENCE TERMINAL",
+  description:
+    "Crime investigation platform powered by a Neo4j knowledge graph and a LangGraph agent",
 };
 
 export default function RootLayout({ children }: LayoutProps<"/">) {
   return (
     <html
       lang="en"
-      className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}
+      className={`${jetbrainsMono.variable} ${archivoBlack.variable} h-full`}
     >
-      <body className="min-h-full flex flex-col">{children}</body>
+      {/* Scanlines + grain are applied once at the root so the whole
+          terminal shares one continuous simulated-hardware surface. */}
+      <body className="crt-scanlines crt-noise min-h-full bg-substrate text-phosphor">
+        {children}
+      </body>
     </html>
   );
 }

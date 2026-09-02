@@ -1,10 +1,18 @@
 "use client";
 
 import { useState, useEffect, useMemo } from "react";
-import Link from "next/link";
-import { ArrowLeft, DownloadSimple, CircleNotch } from "@phosphor-icons/react";
+import { motion } from "motion/react";
 import { getSchema, getSchemaSample, schemaExportUrl } from "@/lib/api";
 import type { SchemaData, SchemaExportFormat } from "@/lib/types";
+import {
+  EASE,
+  LoadingBlocks,
+  PageHeader,
+  Panel,
+  Readout,
+  RuledGrid,
+  Shimmer,
+} from "@/components/ui/motion";
 
 // Graph Schema page - step 14 of the rebuild. Parity target:
 // schema_visualizer.py's SchemaVisualizer - overview metrics, a circular
@@ -17,40 +25,27 @@ import type { SchemaData, SchemaExportFormat } from "@/lib/types";
 
 // Same palette as network_viz.py's color_map, kept local here so this page
 // doesn't depend on the network page's endpoint just for colors.
+// Tactical palette: hazard red marks the operationally significant node
+// types, everything else steps down through phosphor greys. Kept in sync
+// with the network page's legend by intent, not by import.
 const COLOR_MAP: Record<string, string> = {
-  Person: "#F97316",
-  Crime: "#3B82F6",
-  Organization: "#EAB308",
-  Location: "#10B981",
-  Evidence: "#EC4899",
-  Vehicle: "#06B6D4",
-  Weapon: "#DC2626",
-  Investigator: "#8B5CF6",
-  ModusOperandi: "#F59E0B",
+  Person: "#e61919",
+  Crime: "#e61919",
+  Organization: "#eaeaea",
+  Location: "#8a8a8a",
+  Evidence: "#eaeaea",
+  Vehicle: "#8a8a8a",
+  Weapon: "#e61919",
+  Investigator: "#eaeaea",
+  ModusOperandi: "#8a8a8a",
 };
-const FALLBACK_COLOR = "#64748b";
+const FALLBACK_COLOR = "#4a4a4a";
 
 const EXPORT_FORMATS: { fmt: SchemaExportFormat; label: string }[] = [
   { fmt: "json", label: "JSON" },
   { fmt: "cypher", label: "Cypher" },
   { fmt: "markdown", label: "Markdown" },
 ];
-
-function DoubleBezel({
-  children,
-  className = "",
-}: {
-  children: React.ReactNode;
-  className?: string;
-}) {
-  return (
-    <div className={`rounded-[1.5rem] bg-white/5 p-1.5 ring-1 ring-white/10 ${className}`}>
-      <div className="h-full rounded-[calc(1.5rem-0.375rem)] bg-zinc-950/80 shadow-[inset_0_1px_1px_rgba(255,255,255,0.08)] backdrop-blur-2xl">
-        {children}
-      </div>
-    </div>
-  );
-}
 
 const DIAGRAM_SIZE = 560;
 const CENTER = DIAGRAM_SIZE / 2;
@@ -86,14 +81,18 @@ function SchemaDiagram({ data }: { data: SchemaData }) {
         const midY = (from.y + to.y) / 2;
         return (
           <g key={key} onMouseEnter={() => setHovered(key)} onMouseLeave={() => setHovered(null)}>
-            <line
+            {/* Lines draw themselves in, staggered, rather than appearing */}
+            <motion.line
               x1={from.x}
               y1={from.y}
               x2={to.x}
               y2={to.y}
-              stroke={isHovered ? "#e2e8f0" : "rgba(148,163,184,0.25)"}
+              stroke={isHovered ? "#e61919" : "rgba(234,234,234,0.18)"}
               strokeWidth={isHovered ? 2 : 1}
-              className="transition-all duration-300"
+              initial={{ pathLength: 0, opacity: 0 }}
+              animate={{ pathLength: 1, opacity: 1 }}
+              transition={{ duration: 0.9, delay: 0.25 + i * 0.05, ease: EASE }}
+              className="transition-colors duration-300"
             />
             {isHovered && (
               <g>
@@ -102,11 +101,10 @@ function SchemaDiagram({ data }: { data: SchemaData }) {
                   y={midY - 12}
                   width={120}
                   height={20}
-                  rx={10}
-                  fill="rgba(9,9,11,0.95)"
-                  stroke="rgba(255,255,255,0.15)"
+                                    fill="#0a0a0a"
+                  stroke="#e61919"
                 />
-                <text x={midX} y={midY + 2} textAnchor="middle" className="fill-zinc-200 text-[9px] font-medium">
+                <text x={midX} y={midY + 2} textAnchor="middle" className="fill-phosphor text-[9px]">
                   {rel.relationship_type} ({rel.count})
                 </text>
               </g>
@@ -115,19 +113,41 @@ function SchemaDiagram({ data }: { data: SchemaData }) {
         );
       })}
 
-      {data.nodes.map((n) => {
+      {data.nodes.map((n, i) => {
         const pos = positions.get(n.node_type);
         if (!pos) return null;
         const color = COLOR_MAP[n.node_type] ?? FALLBACK_COLOR;
         return (
-          <g key={n.node_type}>
-            <circle cx={pos.x} cy={pos.y} r={pos.r} fill={color} fillOpacity={0.85} stroke="#050505" strokeWidth={3} />
+          <motion.g
+            key={n.node_type}
+            initial={{ opacity: 0, scale: 0.4 }}
+            animate={{ opacity: 1, scale: 1 }}
+            transition={{ type: "spring", stiffness: 220, damping: 18, delay: i * 0.07 }}
+            style={{ transformOrigin: `${pos.x}px ${pos.y}px` }}
+            whileHover={{ scale: 1.12 }}
+          >
+            {/* Soft pulsing halo keeps the diagram alive at rest. Scaled
+                via transform rather than by animating the SVG `r`
+                attribute - `r` is not a transform, so motion drove it to
+                `undefined` between keyframes and the browser rejected it,
+                and transforms stay on the GPU besides. */}
+            <motion.circle
+              cx={pos.x}
+              cy={pos.y}
+              r={pos.r}
+              fill={color}
+              fillOpacity={0.18}
+              style={{ transformOrigin: `${pos.x}px ${pos.y}px` }}
+              animate={{ scale: [1, 1.35, 1] }}
+              transition={{ duration: 3.5, repeat: Infinity, ease: "easeInOut", delay: i * 0.25 }}
+            />
+            <circle cx={pos.x} cy={pos.y} r={pos.r} fill={color} fillOpacity={0.85} stroke="#0a0a0a" strokeWidth={3} />
             <text
               x={pos.x}
               y={pos.y}
               textAnchor="middle"
               dominantBaseline="middle"
-              className="fill-zinc-950 text-[10px] font-bold"
+              className="fill-substrate text-[10px] font-bold"
             >
               {n.count}
             </text>
@@ -135,11 +155,11 @@ function SchemaDiagram({ data }: { data: SchemaData }) {
               x={pos.x}
               y={pos.y + pos.r + 16}
               textAnchor="middle"
-              className="fill-zinc-300 text-[11px] font-medium"
+              className="fill-phosphor-dim text-[10px] uppercase tracking-widest"
             >
               {n.node_type}
             </text>
-          </g>
+          </motion.g>
         );
       })}
     </svg>
@@ -164,94 +184,84 @@ export default function SchemaPage() {
 
   useEffect(() => {
     if (!selectedLabel) return;
-    setSampleLoading(true);
-    getSchemaSample(selectedLabel)
-      .then((res) => setSamples(res.samples))
-      .catch((e) => setError(e.message))
-      .finally(() => setSampleLoading(false));
+    let cancelled = false;
+    (async () => {
+      setSampleLoading(true);
+      try {
+        const res = await getSchemaSample(selectedLabel);
+        if (!cancelled) setSamples(res.samples);
+      } catch (e) {
+        if (!cancelled) setError((e as Error).message);
+      } finally {
+        if (!cancelled) setSampleLoading(false);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
   }, [selectedLabel]);
 
   const totalNodes = data?.nodes.reduce((sum, n) => sum + n.count, 0) ?? 0;
   const totalRels = data?.relationships.reduce((sum, r) => sum + r.count, 0) ?? 0;
 
   return (
-    <main className="relative flex min-h-[100dvh] flex-col overflow-hidden px-4 py-10 sm:px-8">
-      <div className="pointer-events-none fixed inset-0 -z-10">
-        <div className="absolute left-1/4 top-0 h-[36rem] w-[36rem] -translate-x-1/2 rounded-full bg-violet-600/15 blur-[120px]" />
-        <div className="absolute right-0 top-1/2 h-[28rem] w-[28rem] translate-x-1/3 rounded-full bg-emerald-500/10 blur-[120px]" />
-      </div>
-
-      <div className="mx-auto flex w-full max-w-6xl flex-1 flex-col">
-        <div className="mb-8 flex items-center gap-4">
-          <Link
-            href="/"
-            className="flex h-9 w-9 items-center justify-center rounded-full bg-white/5 ring-1 ring-white/10 transition-transform duration-500 ease-[cubic-bezier(0.32,0.72,0,1)] hover:-translate-x-0.5"
-          >
-            <ArrowLeft weight="light" className="h-4 w-4 text-zinc-400" />
-          </Link>
-          <div>
-            <h1 className="text-lg font-semibold tracking-tight text-zinc-50">Graph Schema</h1>
-            <p className="text-xs text-zinc-500">Live-queried Neo4j node and relationship structure</p>
-          </div>
-        </div>
+    <main className="blueprint-grid min-h-[100dvh] px-4 py-8 sm:px-8">
+      <div className="mx-auto flex w-full max-w-[1400px] flex-1 flex-col">
+        <PageHeader
+          unit="D-04"
+          title="Schema"
+          subtitle="LIVE-QUERIED NEO4J STRUCTURE // NODE + RELATIONSHIP TOPOLOGY"
+        />
 
         {error && (
-          <div className="mb-4 rounded-2xl bg-red-500/10 px-4 py-2.5 text-xs text-red-300 ring-1 ring-red-500/20">
-            {error}
+          <div className="mb-3 border border-hazard bg-substrate-raised p-3">
+            <div className="telemetry text-hazard">{"// FAULT"}</div>
+            <div className="mt-1 text-[13px] text-phosphor-dim">{error}</div>
           </div>
         )}
 
         {!data ? (
-          <div className="flex items-center gap-2 text-xs text-zinc-500">
-            <CircleNotch weight="bold" className="h-4 w-4 animate-spin" />
-            Loading schema...
+          <div className="grid grid-cols-2 gap-px border border-rule bg-rule sm:grid-cols-4">
+            {[0, 1, 2, 3].map((i) => (
+              <Shimmer key={i} className="h-[104px] border-0" />
+            ))}
           </div>
         ) : (
           <>
-            <div className="mb-6 grid grid-cols-2 gap-3 sm:grid-cols-4">
-              {[
-                { label: "Entity Types", value: data.nodes.length },
-                { label: "Relationship Types", value: data.relationships.length },
-                { label: "Total Nodes", value: totalNodes.toLocaleString() },
-                { label: "Total Relationships", value: totalRels.toLocaleString() },
-              ].map((m) => (
-                <DoubleBezel key={m.label}>
-                  <div className="p-4">
-                    <p className="text-[10px] uppercase tracking-[0.15em] text-zinc-500">{m.label}</p>
-                    <p className="mt-1 text-2xl font-semibold text-zinc-50">{m.value}</p>
-                  </div>
-                </DoubleBezel>
-              ))}
-            </div>
+            <RuledGrid className="mb-4 grid-cols-2 sm:grid-cols-4">
+              <Readout label="ENTITY TYPES" value={data.nodes.length} max={12} index={0} />
+              <Readout label="REL TYPES" value={data.relationships.length} max={20} index={1} />
+              <Readout label="TOTAL NODES" value={totalNodes} max={2500} index={2} />
+              <Readout label="TOTAL RELS" value={totalRels} max={3500} index={3} />
+            </RuledGrid>
 
-            <div className="grid gap-6 lg:grid-cols-[1fr_360px]">
-              <DoubleBezel>
-                <div className="p-6">
+            <div className="grid gap-4 lg:grid-cols-[1fr_360px]">
+              <Panel label="TOPOLOGY MAP" right={`${data.nodes.length} TYPES`}>
+                <div className="p-4">
                   <SchemaDiagram data={data} />
                 </div>
-              </DoubleBezel>
+              </Panel>
 
-              <div className="space-y-6">
-                <DoubleBezel>
-                  <div className="p-5">
-                    <p className="mb-3 text-xs font-medium text-zinc-400">Property Drill-Down</p>
+              <div className="space-y-4">
+                <Panel label="PROPERTY DRILL-DOWN" right={selectedLabel?.toUpperCase()}>
+                  <div className="p-3">
                     <select
                       value={selectedLabel ?? ""}
                       onChange={(e) => setSelectedLabel(e.target.value)}
-                      className="mb-3 w-full rounded-xl bg-white/5 px-3 py-2 text-sm text-zinc-100 ring-1 ring-white/10 focus:outline-none"
+                      className="mb-3 w-full border border-rule bg-substrate px-2 py-1.5 text-[12px] text-phosphor focus:border-hazard focus:outline-none"
                     >
                       {data.nodes.map((n) => (
-                        <option key={n.node_type} value={n.node_type} className="bg-zinc-950">
-                          {n.node_type}
+                        <option key={n.node_type} value={n.node_type}>
+                          {n.node_type.toUpperCase()}
                         </option>
                       ))}
                     </select>
 
-                    <div className="mb-3 flex flex-wrap gap-1.5">
+                    <div className="mb-3 flex flex-wrap gap-px bg-rule">
                       {(data.properties[selectedLabel ?? ""] ?? []).map((prop) => (
                         <span
                           key={prop}
-                          className="rounded-full bg-white/5 px-2 py-0.5 font-mono text-[10px] text-zinc-400 ring-1 ring-white/10"
+                          className="telemetry bg-substrate px-2 py-1 text-phosphor-dim"
                         >
                           {prop}
                         </span>
@@ -259,64 +269,67 @@ export default function SchemaPage() {
                     </div>
 
                     {sampleLoading ? (
-                      <div className="flex items-center gap-2 text-xs text-zinc-500">
-                        <CircleNotch weight="bold" className="h-3.5 w-3.5 animate-spin" />
-                        Loading samples...
-                      </div>
+                      <LoadingBlocks label="FETCHING SAMPLES" />
                     ) : (
-                      <pre className="max-h-64 overflow-auto rounded-xl bg-black/40 p-3 font-mono text-[10px] leading-relaxed text-zinc-400 ring-1 ring-white/5">
+                      <pre className="max-h-64 overflow-auto border border-rule bg-substrate p-2.5 text-[10px] leading-relaxed text-phosphor-dim">
                         {JSON.stringify(samples, null, 2)}
                       </pre>
                     )}
                   </div>
-                </DoubleBezel>
+                </Panel>
 
-                <DoubleBezel>
-                  <div className="p-5">
-                    <p className="mb-3 text-xs font-medium text-zinc-400">Export Schema</p>
-                    <div className="flex flex-col gap-2">
-                      {EXPORT_FORMATS.map(({ fmt, label }) => (
-                        <a
-                          key={fmt}
-                          href={schemaExportUrl(fmt)}
-                          download
-                          className="flex items-center justify-between rounded-xl bg-white/5 px-3 py-2 text-xs font-medium text-zinc-300 ring-1 ring-white/10 transition-colors duration-500 hover:bg-white/10 hover:text-zinc-50"
-                        >
-                          {label}
-                          <DownloadSimple weight="light" className="h-3.5 w-3.5" />
-                        </a>
-                      ))}
-                    </div>
+                <Panel label="EXPORT SCHEMA">
+                  <div className="grid gap-px bg-rule">
+                    {EXPORT_FORMATS.map(({ fmt, label }) => (
+                      <a
+                        key={fmt}
+                        href={schemaExportUrl(fmt)}
+                        download
+                        className="telemetry group flex items-center justify-between bg-substrate-raised px-3 py-2.5 text-phosphor-dim transition-colors duration-150 hover:bg-hazard hover:text-substrate"
+                      >
+                        {label}
+                        <span className="transition-transform duration-150 group-hover:translate-y-0.5">
+                          {"[ DL ]"}
+                        </span>
+                      </a>
+                    ))}
                   </div>
-                </DoubleBezel>
+                </Panel>
               </div>
             </div>
 
-            <DoubleBezel className="mt-6">
-              <div className="overflow-x-auto p-5">
-                <p className="mb-3 text-xs font-medium text-zinc-400">Relationship Types</p>
-                <table className="w-full text-left text-xs">
+            <Panel label="RELATIONSHIP MANIFEST" right={`${data.relationships.length} TYPES`} className="mt-4">
+              <div className="overflow-x-auto">
+                <table className="w-full text-left">
                   <thead>
-                    <tr className="text-zinc-500">
-                      <th className="pb-2 font-medium">Source</th>
-                      <th className="pb-2 font-medium">Relationship</th>
-                      <th className="pb-2 font-medium">Target</th>
-                      <th className="pb-2 text-right font-medium">Count</th>
+                    <tr className="telemetry border-b border-rule text-phosphor-faint">
+                      <th className="px-3 py-2 font-normal">SOURCE</th>
+                      <th className="px-3 py-2 font-normal">RELATIONSHIP</th>
+                      <th className="px-3 py-2 font-normal">TARGET</th>
+                      <th className="px-3 py-2 text-right font-normal">COUNT</th>
                     </tr>
                   </thead>
-                  <tbody className="text-zinc-300">
-                    {data.relationships.map((r) => (
-                      <tr key={`${r.source_type}-${r.relationship_type}-${r.target_type}`} className="border-t border-white/5">
-                        <td className="py-1.5">{r.source_type}</td>
-                        <td className="py-1.5 font-mono text-emerald-300/80">{r.relationship_type}</td>
-                        <td className="py-1.5">{r.target_type}</td>
-                        <td className="py-1.5 text-right">{r.count.toLocaleString()}</td>
-                      </tr>
+                  <tbody className="text-[12px]">
+                    {data.relationships.map((r, i) => (
+                      <motion.tr
+                        key={`${r.source_type}-${r.relationship_type}-${r.target_type}`}
+                        initial={{ opacity: 0 }}
+                        animate={{ opacity: 1 }}
+                        transition={{ duration: 0.2, delay: i * 0.025 }}
+                        className="border-b border-rule/60 text-phosphor-dim transition-colors duration-150 hover:bg-hazard hover:text-substrate"
+                      >
+                        <td className="px-3 py-1.5">{r.source_type}</td>
+                        <td className="px-3 py-1.5 text-phosphor">{r.relationship_type}</td>
+                        <td className="px-3 py-1.5">{r.target_type}</td>
+                        <td className="px-3 py-1.5 text-right tabular-nums">
+                          {r.count.toLocaleString()}
+                        </td>
+                      </motion.tr>
                     ))}
                   </tbody>
                 </table>
               </div>
-            </DoubleBezel>
+            </Panel>
           </>
         )}
       </div>

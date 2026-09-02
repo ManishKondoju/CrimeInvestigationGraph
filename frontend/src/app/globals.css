@@ -1,21 +1,153 @@
 @import "tailwindcss";
 
-/* Page Theme Lock: this app is dark-only (OLED black, "Ethereal Glass" vibe
-   per the high-end-visual-design skill) - not driven by prefers-color-scheme,
-   so every page/section stays visually consistent regardless of OS setting. */
+/* ============================================================
+   CRIMEGRAPHRAG — TACTICAL TELEMETRY INTERFACE
+   Archetype: Tactical Telemetry & CRT Terminal (dark substrate).
+   Committed to a single substrate: no light mode, no mixing.
+   Rules: zero border-radius, no gradients on UI chrome, no soft
+   shadows, no translucency-as-decoration. Structure comes from
+   1px rules and grid gaps, not from cards floating in space.
+   ============================================================ */
+
 :root {
-  --background: #050505;
-  --foreground: #ededed;
+  --substrate: #0a0a0a;        /* deactivated CRT, never pure black */
+  --substrate-raised: #121212; /* panel interior */
+  --phosphor: #eaeaea;         /* primary readout */
+  --phosphor-dim: #8a8a8a;     /* secondary metadata */
+  --phosphor-faint: #4a4a4a;   /* rules, disabled */
+  --hazard: #e61919;           /* THE accent - alerts, active state, rules */
+  --terminal-green: #4af626;   /* reserved: live-connection indicator ONLY */
+  --rule: #2a2a2a;             /* hairline divider */
 }
 
 @theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
+  --color-substrate: var(--substrate);
+  --color-substrate-raised: var(--substrate-raised);
+  --color-phosphor: var(--phosphor);
+  --color-phosphor-dim: var(--phosphor-dim);
+  --color-phosphor-faint: var(--phosphor-faint);
+  --color-hazard: var(--hazard);
+  --color-terminal: var(--terminal-green);
+  --color-rule: var(--rule);
+  --font-mono: var(--font-jetbrains-mono);
+  --font-display: var(--font-archivo-black);
+}
+
+html {
+  background: var(--substrate);
+  color: var(--phosphor);
 }
 
 body {
-  background: var(--background);
-  color: var(--foreground);
+  background: var(--substrate);
+  color: var(--phosphor);
+  font-family: var(--font-jetbrains-mono), ui-monospace, monospace;
+  font-size: 13px;
+  -webkit-font-smoothing: antialiased;
+}
+
+/* Macro-typography: monolithic, uppercase, tight tracking, compressed
+   leading, so glyphs read as architectural blocks rather than words. */
+.display {
+  font-family: var(--font-archivo-black), system-ui, sans-serif;
+  text-transform: uppercase;
+  letter-spacing: -0.04em;
+  line-height: 0.88;
+}
+
+/* Micro-typography: mechanical typewriter spacing for all metadata. */
+.telemetry {
+  font-family: var(--font-jetbrains-mono), ui-monospace, monospace;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  font-size: 10px;
+  line-height: 1.3;
+}
+
+/* --- Simulated hardware limitations -------------------------------- */
+
+/* CRT scanlines: horizontal electron-beam sweep. Fixed + pointer-events
+   none so it never intercepts input or repaints on scroll. */
+.crt-scanlines::after {
+  content: "";
+  position: fixed;
+  inset: 0;
+  z-index: 60;
+  pointer-events: none;
+  background: repeating-linear-gradient(
+    0deg,
+    transparent,
+    transparent 2px,
+    rgba(0, 0, 0, 0.22) 2px,
+    rgba(0, 0, 0, 0.22) 4px
+  );
+}
+
+/* Mechanical noise: unified physical grain over the whole DOM root. */
+.crt-noise::before {
+  content: "";
+  position: fixed;
+  inset: 0;
+  z-index: 59;
+  pointer-events: none;
+  opacity: 0.035;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='140' height='140'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='3'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+}
+
+/* Blueprint grid backdrop - faint measured graticule, not decoration. */
+.blueprint-grid {
+  background-image:
+    linear-gradient(to right, rgba(234, 234, 234, 0.028) 1px, transparent 1px),
+    linear-gradient(to bottom, rgba(234, 234, 234, 0.028) 1px, transparent 1px);
+  background-size: 48px 48px;
+}
+
+/* Native form controls forced into the system. */
+select,
+input,
+textarea,
+button {
+  font-family: var(--font-jetbrains-mono), ui-monospace, monospace;
+  border-radius: 0 !important;
+}
+
+select {
+  appearance: none;
+  background-image: linear-gradient(45deg, transparent 50%, var(--phosphor-dim) 50%),
+    linear-gradient(135deg, var(--phosphor-dim) 50%, transparent 50%);
+  background-position: calc(100% - 14px) center, calc(100% - 9px) center;
+  background-size: 5px 5px, 5px 5px;
+  background-repeat: no-repeat;
+  padding-right: 28px;
+}
+
+/* Terminal-style scrollbars. */
+::-webkit-scrollbar {
+  width: 9px;
+  height: 9px;
+}
+::-webkit-scrollbar-track {
+  background: var(--substrate);
+}
+::-webkit-scrollbar-thumb {
+  background: var(--phosphor-faint);
+}
+::-webkit-scrollbar-thumb:hover {
+  background: var(--hazard);
+}
+
+::selection {
+  background: var(--hazard);
+  color: var(--phosphor);
+}
+
+input[type="checkbox"] {
+  accent-color: var(--hazard);
+}
+input[type="range"] {
+  accent-color: var(--hazard);
+}
+input[type="date"]::-webkit-calendar-picker-indicator {
+  filter: invert(1);
+  opacity: 0.45;
 }
