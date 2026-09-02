@@ -1,5 +1,40 @@
+# Backend (FastAPI) deployment dependencies.
+#
+# This is deliberately NOT the root requirements.txt: the API doesn't need
+# Snowflake, Folium/streamlit-folium or the OpenAI client (only graph_rag.py
+# used that, and the backend doesn't import it).
+
+# --- API ---
 fastapi==0.115.6
 uvicorn[standard]==0.34.0
 pydantic-settings==2.7.1
+
+# --- Data layer ---
+neo4j==5.18.0
+python-dotenv==1.0.1
+
+# --- LangGraph agent ---
+langgraph==0.2.60
+langchain-core==0.3.29
+langchain-groq==0.2.3
+langgraph-checkpoint-sqlite==2.0.1
+
+# --- Analysis ---
+pandas==2.2.1
+numpy==1.26.4
+scikit-learn==1.4.1.post1   # DBSCAN, used by the geo hotspot endpoint
+
+# --- Transitively required, not used by the API itself ---
+# The API reuses the *data methods* of the Streamlit page modules
+# (network_viz.py, geo_mapping.py, graph_algorithms.py, schema_visualizer.py,
+# timeline_viz.py). Those modules import streamlit and plotly at module top
+# for their render() functions, which the API never calls - but the import
+# still has to resolve. Removing these means first extracting the query
+# logic out of those modules into pure-Python services; tracked as debt
+# rather than done as part of a deploy.
+streamlit==1.32.0
+plotly==5.19.0
+
+# --- Tests ---
 pytest==8.3.4
 httpx==0.28.1

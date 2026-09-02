@@ -1,24 +1,31 @@
 import os
-import streamlit as st
 
-# Load .env into the environment (no-op if the file is absent, e.g. on Streamlit Cloud
-# where secrets come from st.secrets instead)
+# Load .env into the environment (no-op if the file is absent, e.g. on
+# Streamlit Cloud or Render, where secrets come from the platform instead)
 try:
     from dotenv import load_dotenv
     load_dotenv()
 except ImportError:
     pass
 
+
 # Safe function to get secrets with fallback
 def get_secret(key, default=None):
-    """Safely get secret from Streamlit secrets or environment variables"""
+    """Get a secret from Streamlit secrets if available, else the environment.
+
+    Streamlit is imported lazily and treated as optional: this module is also
+    imported by the FastAPI backend (via database.py / langgraph_agent.py),
+    and a top-level `import streamlit` there would drag Streamlit - plus
+    everything else in the root requirements - into the API deployment image.
+    """
     try:
-        # Try Streamlit secrets first
-        if hasattr(st, 'secrets') and key in st.secrets:
+        import streamlit as st  # noqa: PLC0415 - intentionally lazy/optional
+
+        if hasattr(st, "secrets") and key in st.secrets:
             return st.secrets[key]
     except Exception:
         pass
-    
+
     # Fall back to environment variables
     return os.getenv(key, default)
 

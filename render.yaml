@@ -1,0 +1,46 @@
+# Render blueprint for the CrimeGraphRAG API.
+#
+# The service builds from the REPO ROOT, not from backend/: the API reuses
+# root-level modules (database.py, langgraph_agent.py, network_viz.py,
+# graph_algorithms.py, schema_visualizer.py, geo_mapping.py, timeline_viz.py)
+# rather than duplicating their query logic, so they must be on the path.
+#
+# Secrets are intentionally NOT in this file. Set them in the Render
+# dashboard (or `render env`): NEO4J_URI, NEO4J_USER, NEO4J_PASSWORD,
+# GROQ_API_KEY, API_KEY, ALLOWED_ORIGINS.
+
+services:
+  - type: web
+    name: crimegraphrag-api
+    runtime: python
+    plan: free
+    region: ohio
+    branch: feature/fastapi-nextjs-rebuild
+    buildCommand: pip install -r backend/requirements.txt
+    # --app-dir puts backend/ on sys.path for `app.*`; deps.py adds the repo
+    # root for the shared modules. Single worker: the Neo4j driver and the
+    # LangGraph agent are cached per-process, so extra workers would just
+    # multiply connections and cold starts on the free plan.
+    startCommand: uvicorn app.main:app --app-dir backend --host 0.0.0.0 --port $PORT --workers 1
+    healthCheckPath: /health
+    envVars:
+      - key: PYTHON_VERSION
+        value: "3.11.9"
+      - key: NEO4J_URI
+        sync: false
+      - key: NEO4J_USER
+        sync: false
+      - key: NEO4J_PASSWORD
+        sync: false
+      - key: GROQ_API_KEY
+        sync: false
+      - key: GROQ_MODEL
+        value: openai/gpt-oss-120b
+      - key: API_KEY
+        # Shared secret the Next.js server-side proxy sends as X-API-Key.
+        # generateValue makes Render mint a strong random value on create.
+        generateValue: true
+      - key: ALLOWED_ORIGINS
+        # Set to the deployed frontend origin, e.g.
+        # https://crimegraphrag.vercel.app
+        sync: false

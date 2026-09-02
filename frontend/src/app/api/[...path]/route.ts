@@ -1,0 +1,65 @@
+import { NextRequest } from "next/server";
+
+// Server-side proxy to the FastAPI backend.
+//
+// The browser calls same-origin /api/*, this handler forwards to the real
+// API and attaches the shared secret. That keeps API_KEY server-side only -
+// putting it in a NEXT_PUBLIC_* var would ship it to every visitor and
+// defeat the point of having a key at all.
+//
+// It also means the browser never needs cross-origin access to the backend,
+// so the deployment doesn't depend on browser CORS at all.
+
+const BACKEND_URL = process.env.BACKEND_URL ?? "http://localhost:8000";
+const API_KEY = process.env.API_KEY;
+
+// Streamed/download responses (CSV + schema exports) must keep their
+// headers; these are the ones worth passing back through.
+const PASSTHROUGH_RESPONSE_HEADERS = ["content-type", "content-disposition", "cache-control"];
+
+async function proxy(req: NextRequest, path: string[]) {
+  const search = req.nextUrl.search;
+  const target = `${BACKEND_URL}/api/${path.join("/")}${search}`;
+
+  const headers = new Headers();
+  const contentType = req.headers.get("content-type");
+  if (contentType) headers.set("content-type", contentType);
+  if (API_KEY) headers.set("X-API-Key", API_KEY);
+
+  let res: Response;
+  try {
+    res = await fetch(target, {
+      method: req.method,
+      headers,
+      body: req.method === "GET" || req.method === "HEAD" ? undefined : await req.text(),
+      // The LangGraph agent can take a while (entity extraction, Cypher
+      // generation, retries, answer synthesis), so don't let a default
+      // cache or revalidation policy interfere.
+      cache: "no-store",
+    });
+  } catch (e) {
+    // Backend unreachable (cold start on Render free tier, or down).
+    return Response.json(
+      { detail: `Upstream API unreachable: ${(e as Error).message}` },
+      { status: 502 },
+    );
+  }
+
+  const outHeaders = new Headers();
+  for (const h of PASSTHROUGH_RESPONSE_HEADERS) {
+    const v = res.headers.get(h);
+    if (v) outHeaders.set(h, v);
+  }
+
+  return new Response(res.body, { status: res.status, headers: outHeaders });
+}
+
+export async function GET(req: NextRequest, ctx: { params: Promise<{ path: string[] }> }) {
+  const { path } = await ctx.params;
+  return proxy(req, path);
+}
+
+export async function POST(req: NextRequest, ctx: { params: Promise<{ path: string[] }> }) {
+  const { path } = await ctx.params;
+  return proxy(req, path);
+}

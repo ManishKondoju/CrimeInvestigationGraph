@@ -18,7 +18,15 @@ import type {
   SchemaSample,
 } from "./types";
 
-const API_BASE = process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://localhost:8000";
+// Same-origin by default: requests go to this app's /api/* route handler,
+// which forwards to the FastAPI backend and attaches the X-API-Key server
+// side (see src/app/api/[...path]/route.ts). The backend origin and the key
+// are therefore never exposed to the browser.
+//
+// NEXT_PUBLIC_API_BASE_URL still works as an escape hatch for pointing the
+// browser straight at a backend (useful when debugging locally without the
+// proxy), but it must not be set in production.
+const API_BASE = process.env.NEXT_PUBLIC_API_BASE_URL ?? "";
 
 export class ApiError extends Error {
   constructor(
