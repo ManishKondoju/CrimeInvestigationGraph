@@ -158,9 +158,30 @@ export default function GeoPage() {
     setList(list.includes(value) ? list.filter((v) => v !== value) : [...list, value]);
   };
 
+  // Hotspots mode returns DBSCAN clusters, not individual crimes, so the
+  // stat cards have to describe a different thing entirely - showing
+  // "Records Shown: 28" (clusters) next to a stale crime-level severity
+  // count would be actively misleading.
+  const statCards = useMemo(() => {
+    if (mode === "hotspots") {
+      const highRisk = hotspots.filter((h) => h.risk_level === "Critical" || h.risk_level === "High").length;
+      const clusteredCrimes = hotspots.reduce((sum, h) => sum + h.crime_count, 0);
+      return [
+        { label: "Hotspot Clusters", value: hotspots.length.toLocaleString() },
+        { label: "High / Critical Risk", value: highRisk.toLocaleString() },
+        { label: "Crimes Clustered", value: clusteredCrimes.toLocaleString() },
+        { label: "Districts", value: String(districts.length) },
+      ];
+    }
+    return [
+      { label: "Records Shown", value: locations.length.toLocaleString() },
+      { label: "Critical Severity", value: locations.filter((l) => l.severity === "critical").length.toLocaleString() },
+      { label: "Arrests Made", value: locations.filter((l) => l.arrest_made).length.toLocaleString() },
+      { label: "Districts", value: String(districts.length) },
+    ];
+  }, [mode, hotspots, locations, districts]);
+
   const count = mode === "hotspots" ? hotspots.length : locations.length;
-  const criticalCount = locations.filter((l) => l.severity === "critical").length;
-  const arrestCount = locations.filter((l) => l.arrest_made).length;
 
   return (
     <main className="relative flex min-h-[100dvh] flex-col overflow-hidden px-4 py-10 sm:px-8">
@@ -184,12 +205,7 @@ export default function GeoPage() {
         </div>
 
         <div className="mb-6 grid grid-cols-2 gap-3 sm:grid-cols-4">
-          {[
-            { label: "Records Shown", value: count.toLocaleString() },
-            { label: "Critical Severity", value: criticalCount.toLocaleString() },
-            { label: "Arrests Made", value: arrestCount.toLocaleString() },
-            { label: "Districts", value: districts.length },
-          ].map((m) => (
+          {statCards.map((m) => (
             <DoubleBezel key={m.label}>
               <div className="p-4">
                 <p className="text-[10px] uppercase tracking-[0.15em] text-zinc-500">{m.label}</p>
