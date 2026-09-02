@@ -10,25 +10,37 @@ import { NextRequest } from "next/server";
 // It also means the browser never needs cross-origin access to the backend,
 // so the deployment doesn't depend on browser CORS at all.
 
-const BACKEND_URL = process.env.BACKEND_URL ?? "http://localhost:8000";
-const API_KEY = process.env.API_KEY;
-// Only meaningful in local dev - in any real deployment an unset BACKEND_URL
-// means every request dies at localhost, so surface that in the error below
-// rather than emitting a bare "fetch failed".
-const BACKEND_URL_IS_DEFAULT = !process.env.BACKEND_URL;
+// Read per-request rather than at module scope. Module-scope reads are
+// evaluated once per cold start against whatever environment that instance
+// booted with, which makes "I set the var but it still says unset" hard to
+// reason about. Reading here means the values always reflect the current
+// runtime environment.
+function readConfig() {
+  const configured = process.env.BACKEND_URL;
+  return {
+    backendUrl: configured ?? "http://localhost:8000",
+    apiKey: process.env.API_KEY,
+    backendUrlConfigured: !!configured,
+  };
+}
+
+// Force dynamic: this route must never be statically evaluated, or the
+// environment would be captured at build time instead of request time.
+export const dynamic = "force-dynamic";
 
 // Streamed/download responses (CSV + schema exports) must keep their
 // headers; these are the ones worth passing back through.
 const PASSTHROUGH_RESPONSE_HEADERS = ["content-type", "content-disposition", "cache-control"];
 
 async function proxy(req: NextRequest, path: string[]) {
+  const { backendUrl, apiKey, backendUrlConfigured } = readConfig();
   const search = req.nextUrl.search;
-  const target = `${BACKEND_URL}/api/${path.join("/")}${search}`;
+  const target = `${backendUrl}/api/${path.join("/")}${search}`;
 
   const headers = new Headers();
   const contentType = req.headers.get("content-type");
   if (contentType) headers.set("content-type", contentType);
-  if (API_KEY) headers.set("X-API-Key", API_KEY);
+  if (apiKey) headers.set("X-API-Key", apiKey);
 
   let res: Response;
   try {
@@ -46,16 +58,16 @@ async function proxy(req: NextRequest, path: string[]) {
     // or - most commonly on a fresh deploy - BACKEND_URL simply not set.
     // Report the origin we actually tried (never the API key) so the cause
     // is obvious from the response alone.
-    const origin = new URL(BACKEND_URL).origin;
-    const hint = BACKEND_URL_IS_DEFAULT
+    const origin = new URL(backendUrl).origin;
+    const hint = !backendUrlConfigured
       ? " (BACKEND_URL is not set, so this fell back to localhost - set it in the deployment environment and redeploy)"
       : "";
     return Response.json(
       {
         detail: `Upstream API unreachable at ${origin}: ${(e as Error).message}${hint}`,
         backend: origin,
-        backend_url_configured: !BACKEND_URL_IS_DEFAULT,
-        api_key_configured: !!API_KEY,
+        backend_url_configured: backendUrlConfigured,
+        api_key_configured: !!apiKey,
       },
       { status: 502 },
     );
