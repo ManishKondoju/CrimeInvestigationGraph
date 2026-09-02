@@ -19,6 +19,25 @@ const ForceGraph2D = dynamic(() => import("react-force-graph-2d"), { ssr: false 
 
 const VIEW_ALL = "__view_all__";
 
+// Matches network_viz.py's per-type circle sizing (line 536 of the old
+// D3 renderer) so node prominence carries over to the new canvas render.
+const NODE_RADIUS: Record<string, number> = {
+  Organization: 12,
+  Location: 8,
+  Investigator: 7,
+  Evidence: 6,
+  Crime: 6,
+};
+const DEFAULT_RADIUS = 5;
+
+interface NodeObj {
+  id?: string | number;
+  label?: string | null;
+  type?: string;
+  x?: number;
+  y?: number;
+}
+
 function DoubleBezel({
   children,
   className = "",
@@ -204,10 +223,33 @@ export default function NetworkPage() {
                 height={dimensions.height}
                 backgroundColor="rgba(0,0,0,0)"
                 nodeColor={getNodeColor}
-                nodeLabel={(n: { label?: string; id?: string | number; type?: string }) =>
-                  `${n.label ?? n.id} (${n.type})`
-                }
                 nodeRelSize={5}
+                nodeCanvasObject={(node: NodeObj, ctx, globalScale) => {
+                  const radius = NODE_RADIUS[node.type ?? ""] ?? DEFAULT_RADIUS;
+                  ctx.beginPath();
+                  ctx.arc(node.x ?? 0, node.y ?? 0, radius, 0, 2 * Math.PI);
+                  ctx.fillStyle = getNodeColor(node);
+                  ctx.fill();
+                  ctx.lineWidth = 1.5 / globalScale;
+                  ctx.strokeStyle = "#050505";
+                  ctx.stroke();
+
+                  const raw = String(node.label ?? node.id ?? "");
+                  const label = raw.length > 16 ? `${raw.slice(0, 16)}...` : raw;
+                  const fontSize = 11 / globalScale;
+                  ctx.font = `600 ${fontSize}px system-ui, sans-serif`;
+                  ctx.textAlign = "center";
+                  ctx.textBaseline = "top";
+                  ctx.fillStyle = "#e2e8f0";
+                  ctx.fillText(label, node.x ?? 0, (node.y ?? 0) + radius + 3);
+                }}
+                nodePointerAreaPaint={(node: NodeObj, color, ctx) => {
+                  const radius = NODE_RADIUS[node.type ?? ""] ?? DEFAULT_RADIUS;
+                  ctx.fillStyle = color;
+                  ctx.beginPath();
+                  ctx.arc(node.x ?? 0, node.y ?? 0, radius + 2, 0, 2 * Math.PI);
+                  ctx.fill();
+                }}
                 linkLabel={(l: { label?: string }) => l.label ?? ""}
                 linkColor={() => "rgba(148, 163, 184, 0.35)"}
                 linkDirectionalParticles={0}
