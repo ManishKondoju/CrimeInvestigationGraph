@@ -3,16 +3,21 @@
 <div align="center">
 
 ![Neo4j](https://img.shields.io/badge/Neo4j-008CC1?style=for-the-badge&logo=neo4j&logoColor=white)
+![Next.js](https://img.shields.io/badge/Next.js_16-000000?style=for-the-badge&logo=nextdotjs&logoColor=white)
+![FastAPI](https://img.shields.io/badge/FastAPI-009688?style=for-the-badge&logo=fastapi&logoColor=white)
+![LangGraph](https://img.shields.io/badge/LangGraph-1C3C3C?style=for-the-badge&logo=langchain&logoColor=white)
+![Groq](https://img.shields.io/badge/Groq-F55036?style=for-the-badge&logo=groq&logoColor=white)
 ![Python](https://img.shields.io/badge/Python-3.11-3776AB?style=for-the-badge&logo=python&logoColor=white)
-![Streamlit](https://img.shields.io/badge/Streamlit-FF4B4B?style=for-the-badge&logo=streamlit&logoColor=white)
-![Plotly](https://img.shields.io/badge/Plotly-3F4F75?style=for-the-badge&logo=plotly&logoColor=white)
-![OpenAI](https://img.shields.io/badge/LLM-OpenRouter-412991?style=for-the-badge)
 
-**Knowledge Graphs + Generative AI + Machine Learning for Law Enforcement Intelligence**
+**Knowledge Graphs + Agentic AI for Law Enforcement Intelligence**
 
-*A comprehensive crime investigation platform combining Neo4j graph database, Graph RAG architecture, and advanced network analytics*
+*A crime investigation platform combining a Neo4j knowledge graph, a LangGraph agent that writes and self-corrects its own Cypher, and a tactical-telemetry analyst interface*
 
-[Live App](https://crimeneo4j.streamlit.app/) • [Features](#-comprehensive-features) • [Installation](#-detailed-installation) • [Architecture](#-system-architecture) • [Demo](#-demonstration-guide) • [Research](#-research-foundation)
+### 🔴 [**LAUNCH LIVE APP →**](https://crime-investigation-graph.vercel.app/)
+
+[Live Demo](https://crime-investigation-graph.vercel.app/) • [API Docs](https://crimegraphrag-api.onrender.com/docs) • [Architecture](#-system-architecture) • [Installation](#-detailed-installation) • [Features](#-comprehensive-features)
+
+> **Note:** the API runs on a free tier that sleeps when idle — the first request after a quiet period takes ~50s to wake. Subsequent requests are fast.
 
 </div>
 
@@ -21,21 +26,84 @@
 ## 📖 Table of Contents
 
 1. [Overview](#-overview)
-2. [The Graph RAG Innovation](#-the-graph-rag-innovation)
-3. [Comprehensive Features](#-comprehensive-features)
-4. [Knowledge Graph Schema](#-knowledge-graph-schema)
-5. [System Architecture](#-system-architecture)
-6. [Detailed Installation](#-detailed-installation)
-7. [Usage Guide](#-usage-guide)
-8. [Graph Algorithms Explained](#-graph-algorithms-explained)
-9. [Demonstration Guide](#-demonstration-guide)
-10. [Technical Implementation](#-technical-implementation)
-11. [Evaluation & Validation](#-evaluation--validation)
-12. [Research Foundation](#-research-foundation)
-13. [Troubleshooting](#-troubleshooting)
-14. [Roadmap](#-roadmap)
-15. [Contributing](#-contributing)
-16. [Author](#-author)
+2. [v2 — Agentic Rebuild](#-v2--agentic-rebuild-current-architecture)
+3. [The Graph RAG Innovation](#-the-graph-rag-innovation)
+4. [Comprehensive Features](#-comprehensive-features)
+5. [Knowledge Graph Schema](#-knowledge-graph-schema)
+6. [System Architecture](#-system-architecture)
+7. [Detailed Installation](#-detailed-installation)
+8. [Usage Guide](#-usage-guide)
+9. [Graph Algorithms Explained](#-graph-algorithms-explained)
+10. [Demonstration Guide](#-demonstration-guide)
+11. [Technical Implementation](#-technical-implementation)
+12. [Evaluation & Validation](#-evaluation--validation)
+13. [Research Foundation](#-research-foundation)
+14. [Troubleshooting](#-troubleshooting)
+15. [Roadmap](#-roadmap)
+16. [Contributing](#-contributing)
+17. [Author](#-author)
+
+---
+
+## 🚀 v2 — Agentic Rebuild (Current Architecture)
+
+The system was rebuilt from a single Streamlit process into a deployed three-tier
+stack. Both the retrieval logic and the interface were replaced.
+
+### What changed and why
+
+| | v1 | v2 (current) |
+|---|---|---|
+| **Retrieval** | ~600 lines of hand-written `if/elif` keyword matching mapped to hardcoded Cypher | **LangGraph agent** that generates Cypher from the live schema, validates results and retries on failure |
+| **LLM** | OpenRouter | **Groq** (`openai/gpt-oss-120b`) via `langchain-groq` |
+| **Frontend** | Streamlit | **Next.js 16 + React 19 + Tailwind 4** |
+| **API** | none (in-process) | **FastAPI** REST layer |
+| **Hosting** | Streamlit Community Cloud | **Vercel** (frontend) + **Render** (API) + **Neo4j Aura** |
+
+The v1 approach could only answer questions someone had anticipated: an unmatched
+question fell through to a generic fallback. The agent composes queries for
+questions never seen before, and — critically — recovers when it gets them wrong.
+
+### The agent loop
+
+```
+extract_entities ─→ generate_cypher ─→ execute_query ─→ validate ─→ generate_answer
+                          ▲                                  │
+                          └────── retry (≤2) on error ───────┘
+                                  or zero-row result
+```
+
+`validate` treats **zero rows as a failure**, not just an exception. That matters:
+a query can be perfectly valid Cypher and still be wrong. On retry the previous
+query *and* its failure reason are fed back, and the agent loosens its matching —
+in practice turning an exact-name match that found nothing into a
+case-insensitive `CONTAINS` that finds the record.
+
+Every query the agent runs is passed through a read-only guard that rejects
+`CREATE`, `MERGE`, `DELETE`, `SET`, `REMOVE`, `DROP` and procedure calls, so a
+generated query can never mutate the graph.
+
+### Request path
+
+```
+Browser ──→ Vercel (Next.js)
+              │  server-side proxy — attaches X-API-Key
+              ↓
+            Render (FastAPI)
+              ├──→ Neo4j Aura   (graph queries)
+              └──→ Groq         (entity extraction, Cypher generation, answers)
+```
+
+The API key is held **server-side only**. The browser calls same-origin `/api/*`
+and the proxy attaches the secret, so the key is never shipped to the client and
+the deployment doesn't depend on browser CORS at all.
+
+### Interface
+
+The analyst UI is an *industrial/brutalist tactical telemetry terminal*:
+monospace type, hard 1px rules, zero border-radius, a single hazard-red accent,
+and simulated CRT scanlines/grain. The index page carries a live dispatch ticker
+of real incidents drawn from the graph.
 
 ---
 
@@ -1003,61 +1071,53 @@ Org       0      40        0          5
 ```
 ┌──────────────────────────────────────────────────────────────────┐
 │                    INVESTIGATOR / ANALYST                         │
-│                       (System User)                               │
 └────────────────────────────┬─────────────────────────────────────┘
-                             │
                              ↓
 ┌──────────────────────────────────────────────────────────────────┐
-│                    STREAMLIT UI (Frontend)                        │
-│  ┌──────────┬──────────┬──────────┬──────────┬─────────────┐   │
-│  │Dashboard │ AI Chat  │ Graphs   │ Network  │ Timeline    │   │
-│  └──────────┴──────────┴──────────┴──────────┴─────────────┘   │
+│         NEXT.JS 16 FRONTEND  (Vercel)                             │
+│  ┌──────────┬──────────┬──────────┬──────────┬─────────────┐    │
+│  │Dashboard │ AI Chat  │ Network  │Geospatial│  Schema     │    │
+│  └──────────┴──────────┴──────────┴──────────┴─────────────┘    │
+│  React 19 · Tailwind 4 · react-force-graph · MapLibre GL         │
 │                                                                   │
-│  • Sends user NL queries                                         │
-│  • Displays Cypher, subgraphs, maps                              │
-│  • Shows network, timeline, schema                               │
+│  Server-side proxy (/api/*) attaches X-API-Key, so the secret     │
+│  never reaches the browser and no browser CORS is required.       │
 └────────────────────────────┬─────────────────────────────────────┘
-                             │
-                             ↓
+                             ↓  HTTPS + X-API-Key
 ┌──────────────────────────────────────────────────────────────────┐
-│                    GRAPHRAG ENGINE (Core Logic)                   │
+│         FASTAPI BACKEND  (Render)                                 │
 │                                                                   │
-│  Modules:                                                         │
-│  • Query Interpreter (NL → intent)                               │
-│  • LLM Interface (OpenRouter / Llama3)                           │
-│  • Cypher Generator (intent → queries)                           │
-│  • Subgraph Retriever (via Neo4j driver)                         │
-│  • Graph → Text Encoder                                          │
-│  • LLM Reasoning (RAG Answer Generation)                         │
+│  /api/chat        → LangGraph agent                              │
+│  /api/dashboard/* → 6 aggregate endpoints                        │
+│  /api/network/*   → {nodes, edges} graph payloads                │
+│  /api/geo/*       → incidents, DBSCAN hotspots, CSV export       │
+│  /api/schema/*    → live topology + JSON/Cypher/MD exports       │
+│  /api/timeline/*  → temporal aggregates                          │
 │                                                                   │
-│  Outputs: Cypher, subgraph, explanation                          │
-└────────────────────────────┬─────────────────────────────────────┘
-                             │
-                             ↓
+│  All filters are $-parameterised (no string interpolation).      │
+└──────────┬────────────────────────────────────┬──────────────────┘
+           │                                    │
+           ↓                                    ↓
+┌────────────────────────────┐    ┌────────────────────────────────┐
+│   LANGGRAPH AGENT          │    │   GROQ  (openai/gpt-oss-120b)  │
+│                            │───→│                                │
+│  extract_entities          │    │  · entity extraction           │
+│  generate_cypher           │←───│  · Cypher generation           │
+│  execute_query  ─┐         │    │  · answer synthesis            │
+│  validate ───────┘ retry×2 │    └────────────────────────────────┘
+│  generate_answer           │
+│                            │
+│  Read-only guard rejects   │
+│  CREATE/MERGE/DELETE/SET   │
+└────────────┬───────────────┘
+             ↓
 ┌──────────────────────────────────────────────────────────────────┐
-│                 NEO4J GRAPH DATABASE                              │
+│                 NEO4J AURA  (managed cloud)                       │
 │                                                                   │
-│  Nodes: Crime, Person, Officer, Location, Evidence, Area         │
-│                                                                   │
-│  Rels: OCCURRED_AT, INVESTIGATED_BY, PARTY_TO, KNOWS, etc.      │
-│                                                                   │
-│  • 1,307 nodes across 9 entity types                             │
-│  • 3,500+ relationships (20+ types)                              │
-└────────────────────────────┬─────────────────────────────────────┘
-                             │
-      ┌──────────────────────┼──────────────────────┐
-      │                      │                      │
-      ↓                      ↓                      ↓
-┌─────────────┐    ┌─────────────────┐    ┌──────────────────┐
-│LLM Provider │    │ External Data   │    │ Graph Algorithms │
-│             │    │ Sources         │    │                  │
-│OpenRouter / │    │                 │    │ • PageRank       │
-│Llama3       │    │• Chicago Crime  │    │ • Centrality     │
-│             │    │  API            │    │ • Communities    │
-│• Process NL │    │• CSV / ETL      │    │ • Shortest Path  │
-│• Generate   │    │• Synthetic      │    │                  │
-│  answers    │    │  entities       │    │ Built-in Neo4j   │
-└─────────────┘    └─────────────────┘    └──────────────────┘
+│  1,868 nodes · 2,738 relationships                               │
+│  9 node types · 13 relationship types                            │
+│  670 crimes (493 real Chicago Open Data + 177 synthetic)         │
+└──────────────────────────────────────────────────────────────────┘
 ```
 
 ### **Data Flow for Graph RAG Query**
@@ -1098,6 +1158,77 @@ Org       0      40        0          5
 ---
 
 ## 🔧 Detailed Installation
+
+### **Running the v2 stack locally**
+
+The current stack is three processes. Neo4j is managed (Aura), so you run two.
+
+**Prerequisites:** Python 3.11+, Node.js 20+, a Neo4j instance, a
+[Groq API key](https://console.groq.com/keys).
+
+**1 — Environment.** Create `.env` in the repo root (it is gitignored; never commit it):
+
+```bash
+NEO4J_URI = "neo4j+s://<your-instance>.databases.neo4j.io"
+NEO4J_USER = "<user>"
+NEO4J_PASSWORD = "<password>"
+GROQ_API_KEY = "gsk_..."
+```
+
+**2 — Backend (FastAPI):**
+
+```bash
+python -m venv venv && source venv/bin/activate
+pip install -r backend/requirements.txt
+python load_hybrid_data.py                    # seed the graph (once)
+cd backend && uvicorn app.main:app --port 8000
+```
+
+Verify: `curl localhost:8000/health` → `{"status":"ok","neo4j":"up"}`
+Interactive API docs: `http://localhost:8000/docs`
+
+**3 — Frontend (Next.js):**
+
+```bash
+cd frontend
+npm install
+npm run dev                                   # http://localhost:3000
+```
+
+`frontend/.env.local` is optional locally — the proxy defaults to
+`http://localhost:8000` in development.
+
+**Tests:**
+
+```bash
+python -m pytest backend/tests -v             # 27 tests
+```
+
+### **Deploying**
+
+| Tier | Platform | Config |
+|---|---|---|
+| Frontend | Vercel | Root directory `frontend`; set `BACKEND_URL` + `API_KEY` |
+| API | Render | [`render.yaml`](render.yaml) blueprint; set Neo4j + Groq vars |
+| Database | Neo4j Aura | managed |
+
+`API_KEY` is generated by Render and must be copied into Vercel — it is the
+shared secret the frontend proxy attaches to every API call. See
+[`DEPLOY.md`](DEPLOY.md) for the full walkthrough.
+
+### **Legacy: running the v1 Streamlit app**
+
+The original single-process Streamlit app is still in the repo and functional:
+
+```bash
+streamlit run app.py
+```
+
+It now uses the same LangGraph agent as v2 (it was rewired during the rebuild),
+so it needs the same `.env`. It is retained for reference and will be retired
+once the remaining two pages (Timeline, Graph Algorithms) are ported.
+
+---
 
 ### **System Requirements**
 
@@ -1202,13 +1333,27 @@ requests>=2.31.0
 
 #### **Step 3: Configure API Access**
 
-**Get OpenRouter API Key:**
+> ⚠️ **This subsection describes the v1 setup and is retained for historical
+> reference.** v2 uses **Groq**, and secrets live in `.env` (not `config.py`) —
+> see [Running the v2 stack locally](#-detailed-installation) above.
+
+**Get a Groq API Key (v2):**
+
+1. Visit https://console.groq.com/keys
+2. Sign up (free tier available)
+3. Create an API key and copy it (starts with `gsk_...`)
+4. Add it to `.env` as `GROQ_API_KEY`
+
+<details>
+<summary>v1 — OpenRouter key (legacy)</summary>
 
 1. Visit https://openrouter.ai/
 2. Sign up (free account)
 3. Navigate to Settings → API Keys
 4. Click "Create New Key"
 5. Copy the key (starts with `sk-or-v1-...`)
+
+</details>
 
 **Create config.py:**
 
@@ -2632,6 +2777,19 @@ for message in st.session_state.chat_history:
 
 ## 🚧 Troubleshooting
 
+### **Deployment (v2)**
+
+| Symptom | Cause | Fix |
+|---|---|---|
+| First request hangs ~50s | Render free tier sleeps when idle | Expected — it wakes on the next request |
+| `Upstream API unreachable` | API down, or `BACKEND_URL` misconfigured | The 502 body reports the origin tried plus `backend_url_configured` / `api_key_configured` |
+| Every request returns 401 | `API_KEY` differs between Render and Vercel | Copy Render's generated `API_KEY` into Vercel, then **redeploy** |
+| `neo4j: down` on `/health` | Aura auto-paused (~3 days idle) | Resume the instance in the Aura console |
+| Vercel build fails | Root directory not set | Set it to `frontend` in project settings |
+| Env var changes not applied | Vercel snapshots vars per deployment | Redeploy after saving — changes are not retroactive |
+
+
+
 ### **Common Issues & Solutions**
 
 #### **Issue 1: "Cannot connect to Neo4j"**
@@ -2838,7 +2996,7 @@ Ctrl+Shift+R (Windows)
 
 **Phase 2: Graph RAG**
 - [x] Basic retrieval engine
-- [x] LLM integration (OpenRouter)
+- [x] LLM integration (OpenRouter in v1 → Groq in v2)
 - [x] Conversational context management
 - [x] Zero-hallucination validation
 - [x] Transparency features (Cypher + Raw Data)
@@ -2987,7 +3145,7 @@ Ctrl+Shift+R (Windows)
 - **Streamlit** - Web application framework
 - **Plotly** - Interactive visualizations
 - **D3.js** - Network graph rendering
-- **OpenRouter** - LLM API access
+- **Groq** - LLM inference for the agent (v2); **OpenRouter** - LLM API access (v1)
 - **scikit-learn** - Machine learning algorithms
 
 **Academic:**
@@ -3048,13 +3206,13 @@ This project is developed for educational purposes as part of DAMG 7374 coursewo
 
 **Development:**
 - **Timeline:** One academic semester (Fall 2024)
-- **Lines of Code:** ~8,000+ Python
+- **Lines of Code:** ~8,000 Python (v1) + ~4,000 TypeScript/Python (v2 rebuild)
 - **Commits:** 150+
-- **Features:** 8 integrated pages
+- **Features:** 8 pages in v1; 5 of 7 modules ported to v2 so far
 - **Visualizations:** 25+ chart types
 
 **Technical:**
-- **Database:** 1,307 nodes, 3,500+ relationships
+- **Database:** 1,868 nodes, 2,738 relationships (9 node types, 13 relationship types)
 - **Queries:** 100+ unique Cypher patterns
 - **AI Responses:** 0% hallucination rate
 - **Performance:** <5s average response time
