@@ -28,7 +28,7 @@ const destinations = [
   { label: "Network Visualization", icon: ShareNetwork, span: "md:col-span-4", href: "/network" },
   { label: "Geographic Mapping", icon: MapTrifold, span: "md:col-span-4", href: undefined },
   { label: "Timeline Analysis", icon: ClockCountdown, span: "md:col-span-4", href: undefined },
-  { label: "Graph Schema", icon: Article, span: "md:col-span-4", href: undefined },
+  { label: "Graph Schema", icon: Article, span: "md:col-span-4", href: "/schema" },
 ];
 
 function DoubleBezel({

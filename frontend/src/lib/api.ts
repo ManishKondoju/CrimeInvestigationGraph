@@ -4,6 +4,9 @@ import type {
   EntityOption,
   EntityTypesResponse,
   NetworkGraph,
+  SchemaData,
+  SchemaExportFormat,
+  SchemaSample,
 } from "./types";
 
 const API_BASE = process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://localhost:8000";
@@ -54,4 +57,16 @@ export function getNetworkGraph(type: string, id?: string | number | null): Prom
   const params = new URLSearchParams({ type });
   if (id != null) params.set("id", String(id));
   return getJson(`/api/network/graph?${params.toString()}`);
+}
+
+export function getSchema(): Promise<SchemaData> {
+  return getJson("/api/schema");
+}
+
+export function getSchemaSample(label: string): Promise<SchemaSample> {
+  return getJson(`/api/schema/sample/${encodeURIComponent(label)}`);
+}
+
+export function schemaExportUrl(fmt: SchemaExportFormat): string {
+  return `${API_BASE}/api/schema/export/${fmt}`;
 }

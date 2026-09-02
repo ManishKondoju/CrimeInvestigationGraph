@@ -71,3 +71,30 @@ export interface NetworkGraph {
   nodes: NetworkNode[];
   edges: NetworkEdge[];
 }
+
+// Mirrors backend/app/models/schema_models.py and backend/app/routers/schema.py.
+
+export interface SchemaNodeType {
+  node_type: string;
+  count: number;
+}
+
+export interface SchemaRelationshipType {
+  source_type: string;
+  relationship_type: string;
+  target_type: string;
+  count: number;
+}
+
+export interface SchemaData {
+  nodes: SchemaNodeType[];
+  relationships: SchemaRelationshipType[];
+  properties: Record<string, string[]>;
+}
+
+export interface SchemaSample {
+  label: string;
+  samples: Record<string, unknown>[];
+}
+
+export type SchemaExportFormat = "json" | "cypher" | "markdown";
