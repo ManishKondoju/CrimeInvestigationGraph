@@ -13,7 +13,7 @@ const MODULES = [
   { id: "D-02", label: "NETWORK", href: "/network", desc: "FORCE-DIRECTED ASSOCIATION GRAPH", status: "ONLINE" },
   { id: "D-03", label: "GEOSPATIAL", href: "/geo", desc: "INCIDENT MAP // DBSCAN HOTSPOTS", status: "ONLINE" },
   { id: "D-04", label: "SCHEMA", href: "/schema", desc: "LIVE GRAPH STRUCTURE // EXPORTS", status: "ONLINE" },
-  { id: "D-05", label: "DASHBOARD", href: null, desc: "EXECUTIVE OVERVIEW", status: "OFFLINE" },
+  { id: "D-05", label: "DASHBOARD", href: "/dashboard", desc: "EXECUTIVE OVERVIEW // THREAT POSTURE", status: "ONLINE" },
   { id: "D-06", label: "TIMELINE", href: null, desc: "TEMPORAL PATTERN ANALYSIS", status: "OFFLINE" },
   { id: "D-07", label: "ALGORITHMS", href: null, desc: "CENTRALITY // COMMUNITY DETECTION", status: "OFFLINE" },
 ];
@@ -60,7 +60,7 @@ export default function Home() {
               <dt>AGENT</dt>
               <dd className="text-phosphor-dim">LANGGRAPH</dd>
               <dt>MODULES</dt>
-              <dd className="text-phosphor-dim">4 / 7 ONLINE</dd>
+              <dd className="text-phosphor-dim">5 / 7 ONLINE</dd>
             </dl>
           </div>
         </div>

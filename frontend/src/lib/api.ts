@@ -1,5 +1,11 @@
 import type {
   ChatRequest,
+  DashboardActivity,
+  DashboardBreakdowns,
+  DashboardKpis,
+  DashboardOperations,
+  DashboardTrends,
+  GangIntel,
   ChatResponse,
   CrimeLocation,
   EntityOption,
@@ -102,4 +108,28 @@ export function getHotspots(filters: GeoFilters): Promise<{ count: number; predi
 
 export function geoExportCsvUrl(filters: GeoFilters): string {
   return `${API_BASE}/api/geo/export.csv?${geoParams(filters).toString()}`;
+}
+
+export function getKpis(): Promise<DashboardKpis> {
+  return getJson("/api/dashboard/kpis");
+}
+
+export function getTrends(): Promise<DashboardTrends> {
+  return getJson("/api/dashboard/trends");
+}
+
+export function getGangs(): Promise<{ gangs: GangIntel[] }> {
+  return getJson("/api/dashboard/gangs");
+}
+
+export function getBreakdowns(): Promise<DashboardBreakdowns> {
+  return getJson("/api/dashboard/breakdowns");
+}
+
+export function getOperations(): Promise<DashboardOperations> {
+  return getJson("/api/dashboard/operations");
+}
+
+export function getActivity(): Promise<DashboardActivity> {
+  return getJson("/api/dashboard/activity");
 }

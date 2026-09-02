@@ -133,3 +133,100 @@ export interface GeoFilters {
   districts?: string[];
   limit?: number;
 }
+
+// Mirrors backend/app/routers/dashboard.py -> app/services/dashboard_service.py.
+// Six aggregate endpoints replacing enhanced_dashboard.py's ~30 inline queries.
+
+export interface DashboardKpis {
+  total_crimes: number;
+  open_cases: number;
+  critical_crimes: number;
+  solve_rate: number;
+  districts: string[];
+  total_persons: number;
+  total_organizations: number;
+  total_evidence: number;
+  total_weapons: number;
+  insights: {
+    high_risk_suspects: number;
+    active_gangs: number;
+    critical_evidence: number;
+    weapons_recovered: number;
+    repeat_offenders: { total: number; max_crimes: number };
+    armed_gang_members: { total: number; gangs: number; weapons: number };
+    network_hubs: { total: number; max_connections: number };
+  };
+}
+
+export interface MonthlyTrend {
+  year_month: string;
+  total_crimes: number;
+  severe_crimes: number;
+  solved_crimes: number;
+}
+
+export interface DashboardTrends {
+  monthly_trends: MonthlyTrend[];
+  pipeline: { total: number; open: number; investigating: number; solved: number; cold: number };
+}
+
+export interface GangIntel {
+  gang: string;
+  territory: string | null;
+  type: string | null;
+  members: number;
+  crimes: number;
+  weapons: number;
+  severe_crimes: number;
+  threat_level: number;
+}
+
+export interface DashboardBreakdowns {
+  crime_types: { type: string; count: number }[];
+  severity: { severity: string; count: number }[];
+  districts: { district: string; crimes: number }[];
+  weapon_status: { type: string; total: number; recovered: number; at_large: number }[];
+  evidence_significance: { significance: string; total: number; verified: number }[];
+}
+
+export interface DashboardOperations {
+  investigators: {
+    investigator: string;
+    department: string | null;
+    total_cases: number;
+    solved: number;
+    active: number;
+    solve_rate: number;
+  }[];
+  district_heatmap: { district: string; total: number; severe: number; other: number }[];
+  hotspots: { location: string; district: string | null; crimes: number; severe: number }[];
+}
+
+export interface DashboardActivity {
+  recent_incidents: {
+    id: string;
+    type: string;
+    date: string;
+    time: string | null;
+    severity: string;
+    status: string;
+    location: string;
+    district: string;
+    suspect: string | null;
+  }[];
+  peak_hour: string | null;
+  priority_targets: {
+    name: string;
+    age: number;
+    crimes: number;
+    weapons: number;
+    gang: string;
+    priority: string;
+  }[];
+  data_quality: {
+    orphaned_crimes: number;
+    no_evidence_crimes: number;
+    unsolved_severe: number;
+    independent_suspects: number;
+  };
+}
