@@ -401,3 +401,114 @@ export function PageHeader({
     </div>
   );
 }
+
+/* ------------------------------------------------------------------ */
+/* DISPATCH                                                            */
+/* ------------------------------------------------------------------ */
+
+/**
+ * Rotating emergency beacon, drawn rather than photographed - a stock
+ * siren image would break the system's typographic/technical discipline
+ * and carry licensing baggage for no benefit.
+ */
+export function SirenBeacon({ size = 44 }: { size?: number }) {
+  return (
+    <svg
+      width={size}
+      height={size}
+      viewBox="0 0 48 48"
+      fill="none"
+      aria-hidden
+      className="shrink-0"
+    >
+      {/* Sweeping light cone */}
+      <g className="beacon-sweep">
+        <path d="M24 22 L46 10 L46 34 Z" fill="var(--hazard)" opacity="0.16" />
+        <path d="M24 22 L2 10 L2 34 Z" fill="var(--hazard)" opacity="0.16" />
+      </g>
+
+      {/* Lamp dome */}
+      <path
+        d="M14 24 A10 10 0 0 1 34 24 Z"
+        fill="var(--hazard)"
+        className="beacon-lamp"
+      />
+      {/* Housing + base, squared off to match the system's geometry */}
+      <rect x="12" y="24" width="24" height="4" fill="var(--phosphor-dim)" />
+      <rect x="15" y="28" width="18" height="7" fill="var(--phosphor-faint)" />
+      <rect x="11" y="35" width="26" height="3" fill="var(--phosphor-dim)" />
+    </svg>
+  );
+}
+
+export interface TickerIncident {
+  id: string;
+  type: string;
+  date: string;
+  time: string | null;
+  severity: string;
+  status: string;
+  location: string;
+  district: string;
+  suspect: string | null;
+}
+
+/**
+ * Endless dispatch feed of real incidents from the graph.
+ *
+ * The track renders the list TWICE and scrolls exactly -50%: at the end of
+ * the animation the second copy sits precisely where the first started, so
+ * the loop has no visible seam and no JS is involved in the scrolling.
+ */
+export function IncidentTicker({ incidents }: { incidents: TickerIncident[] }) {
+  if (incidents.length === 0) return null;
+
+  const severe = (s: string) => ["critical", "high", "severe"].includes(s.toLowerCase());
+
+  const Item = ({ inc }: { inc: TickerIncident }) => (
+    <div className="flex shrink-0 items-center gap-3 border-r border-rule px-5 py-2.5">
+      <span className={`h-2 w-2 shrink-0 ${severe(inc.severity) ? "bg-hazard" : "bg-phosphor-faint"}`} />
+      <span className="telemetry text-phosphor-faint">
+        {inc.date}
+        {inc.time ? ` ${inc.time.slice(0, 5)}` : ""}
+      </span>
+      <span className="telemetry text-phosphor">{inc.type}</span>
+      <span className="telemetry text-phosphor-dim">DIST {inc.district}</span>
+      <span className="telemetry max-w-[22ch] truncate text-phosphor-dim" title={inc.location}>
+        {inc.location}
+      </span>
+      {inc.suspect && (
+        <span className="telemetry text-phosphor-faint">
+          {"// "}
+          {inc.suspect.toUpperCase()}
+        </span>
+      )}
+      <span className={`telemetry ${severe(inc.severity) ? "text-hazard" : "text-phosphor-faint"}`}>
+        [{inc.severity.toUpperCase()}]
+      </span>
+    </div>
+  );
+
+  return (
+    <div className="relative overflow-hidden border-y border-rule bg-substrate-raised">
+      {/* Fixed label rides above the moving feed */}
+      <div className="absolute inset-y-0 left-0 z-10 flex items-center gap-2 border-r border-hazard bg-hazard px-3">
+        <span className="telemetry text-substrate">● LIVE DISPATCH</span>
+      </div>
+
+      <div className="ticker-track pl-[168px]">
+        {/* Two copies - see the -50% translate above */}
+        {[0, 1].map((copy) => (
+          <div key={copy} className="flex" aria-hidden={copy === 1}>
+            {incidents.map((inc) => (
+              <Item key={`${copy}-${inc.id}`} inc={inc} />
+            ))}
+          </div>
+        ))}
+      </div>
+
+      {/* Edge fades so items enter and leave rather than popping */}
+      <div className="pointer-events-none absolute inset-y-0 right-0 w-16 bg-gradient-to-l from-substrate-raised to-transparent" />
+    </div>
+  );
+}

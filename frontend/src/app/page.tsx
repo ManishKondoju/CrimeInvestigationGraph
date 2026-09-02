@@ -1,8 +1,18 @@
 "use client";
 
+import { useEffect, useState } from "react";
 import Link from "next/link";
 import { motion } from "motion/react";
-import { EASE, RuledGrid, StatusLight, TypeOut } from "@/components/ui/motion";
+import {
+  EASE,
+  IncidentTicker,
+  RuledGrid,
+  SirenBeacon,
+  StatusLight,
+  TypeOut,
+} from "@/components/ui/motion";
+import { getActivity } from "@/lib/api";
+import type { DashboardActivity } from "@/lib/types";
 
 // Index page. Not a marketing hero - a terminal boot screen and a
 // dispatch board of available modules, per the Tactical Telemetry
@@ -19,6 +29,25 @@ const MODULES = [
 ];
 
 export default function Home() {
+  // Live incidents for the dispatch ticker. Best-effort: the backend sleeps
+  // on Render's free tier, so a cold start can take ~50s - the ticker simply
+  // doesn't render until data arrives rather than blocking the page.
+  const [incidents, setIncidents] = useState<DashboardActivity["recent_incidents"]>([]);
+
+  useEffect(() => {
+    let cancelled = false;
+    getActivity()
+      .then((a) => {
+        if (!cancelled) setIncidents(a.recent_incidents);
+      })
+      .catch(() => {
+        /* ticker is decorative - a failure here must not break the page */
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
   return (
     <main className="blueprint-grid min-h-[100dvh] px-4 py-8 sm:px-8">
       <div className="mx-auto w-full max-w-[1400px]">
@@ -32,12 +61,17 @@ export default function Home() {
 
         {/* Macro-typographic masthead - viewport-bleeding, tight, uppercase */}
         <div className="relative py-10 md:py-16">
-          <h1 className="display text-[clamp(3rem,13vw,11rem)] text-phosphor">
-            CRIME
-            <br />
-            GRAPH
-            <span className="text-hazard">RAG</span>
-          </h1>
+          <div className="flex items-start gap-4">
+            <h1 className="display text-[clamp(3rem,13vw,11rem)] text-phosphor">
+              CRIME
+              <br />
+              GRAPH
+              <span className="text-hazard">RAG</span>
+            </h1>
+            <div className="mt-2 md:mt-4">
+              <SirenBeacon size={56} />
+            </div>
+          </div>
 
           <motion.div
             initial={{ scaleX: 0 }}
@@ -63,6 +97,11 @@ export default function Home() {
               <dd className="text-phosphor-dim">5 / 7 ONLINE</dd>
             </dl>
           </div>
+        </div>
+
+        {/* Endless dispatch feed of real incidents from the graph */}
+        <div className="mb-8">
+          <IncidentTicker incidents={incidents} />
         </div>
 
         {/* Dispatch board */}

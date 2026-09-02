@@ -151,3 +151,47 @@ input[type="date"]::-webkit-calendar-picker-indicator {
   filter: invert(1);
   opacity: 0.45;
 }
+
+/* --- Dispatch ticker -----------------------------------------------
+   Seamless marquee: the track holds two identical copies of the feed and
+   translates exactly -50%, so the second copy lands where the first began
+   and the loop is invisible. Transform-only, so it stays on the GPU. */
+@keyframes ticker-scroll {
+  from { transform: translateX(0); }
+  to   { transform: translateX(-50%); }
+}
+
+.ticker-track {
+  display: flex;
+  width: max-content;
+  animation: ticker-scroll 60s linear infinite;
+  will-change: transform;
+}
+
+/* Pause on hover so an operator can actually read a passing incident. */
+.ticker-track:hover {
+  animation-play-state: paused;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .ticker-track { animation: none; }
+}
+
+/* --- Emergency beacon ----------------------------------------------
+   Rotating light sweep + lamp pulse. Pure CSS, no raster asset. */
+@keyframes beacon-sweep {
+  from { transform: rotate(0deg); }
+  to   { transform: rotate(360deg); }
+}
+
+@keyframes beacon-pulse {
+  0%, 100% { opacity: 1; }
+  50%      { opacity: 0.45; }
+}
+
+.beacon-sweep { animation: beacon-sweep 2.4s linear infinite; transform-origin: 50% 50%; }
+.beacon-lamp  { animation: beacon-pulse 1.2s ease-in-out infinite; }
+
+@media (prefers-reduced-motion: reduce) {
+  .beacon-sweep, .beacon-lamp { animation: none; }
+}
