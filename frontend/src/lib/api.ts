@@ -1,8 +1,11 @@
 import type {
   ChatRequest,
   ChatResponse,
+  CrimeLocation,
   EntityOption,
   EntityTypesResponse,
+  GeoFilters,
+  HotspotPrediction,
   NetworkGraph,
   SchemaData,
   SchemaExportFormat,
@@ -69,4 +72,34 @@ export function getSchemaSample(label: string): Promise<SchemaSample> {
 
 export function schemaExportUrl(fmt: SchemaExportFormat): string {
   return `${API_BASE}/api/schema/export/${fmt}`;
+}
+
+function geoParams(filters: GeoFilters): URLSearchParams {
+  const params = new URLSearchParams();
+  filters.crime_types?.forEach((t) => params.append("crime_types", t));
+  filters.districts?.forEach((d) => params.append("districts", d));
+  if (filters.start_date) params.set("start_date", filters.start_date);
+  if (filters.end_date) params.set("end_date", filters.end_date);
+  if (filters.limit) params.set("limit", String(filters.limit));
+  return params;
+}
+
+export function getCrimeTypes(): Promise<{ types: string[] }> {
+  return getJson("/api/geo/crime-types");
+}
+
+export function getDistricts(): Promise<{ districts: string[] }> {
+  return getJson("/api/geo/districts");
+}
+
+export function getCrimeLocations(filters: GeoFilters): Promise<{ count: number; rows: CrimeLocation[] }> {
+  return getJson(`/api/geo/locations?${geoParams(filters).toString()}`);
+}
+
+export function getHotspots(filters: GeoFilters): Promise<{ count: number; predictions: HotspotPrediction[] }> {
+  return getJson(`/api/geo/hotspots?${geoParams(filters).toString()}`);
+}
+
+export function geoExportCsvUrl(filters: GeoFilters): string {
+  return `${API_BASE}/api/geo/export.csv?${geoParams(filters).toString()}`;
 }

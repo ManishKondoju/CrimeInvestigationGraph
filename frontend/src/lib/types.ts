@@ -98,3 +98,38 @@ export interface SchemaSample {
 }
 
 export type SchemaExportFormat = "json" | "cypher" | "markdown";
+
+// Mirrors backend/app/routers/geo.py and backend/app/services/geo_service.py.
+
+export interface CrimeLocation {
+  case_id: string;
+  crime_type: string;
+  date: string;
+  severity: string;
+  status: string;
+  arrest_made: boolean;
+  latitude: number;
+  longitude: number;
+  location_name: string;
+  district: string;
+}
+
+export interface HotspotPrediction {
+  latitude: number;
+  longitude: number;
+  crime_count: number;
+  severe_count: number;
+  risk_score: number;
+  risk_level: string;
+  primary_crime: string;
+  district: string;
+  arrest_rate: number;
+}
+
+export interface GeoFilters {
+  crime_types?: string[];
+  start_date?: string;
+  end_date?: string;
+  districts?: string[];
+  limit?: number;
+}
