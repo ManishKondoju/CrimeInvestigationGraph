@@ -11,3 +11,9 @@ folium==0.16.0
 numpy==1.26.4
 snowflake-connector-python==3.7.1
 requests==2.31.0
+
+# LangGraph agent (crime investigation agent)
+langgraph==0.2.60
+langchain-core==0.3.29
+langchain-groq==0.2.3
+langgraph-checkpoint-sqlite==2.0.1

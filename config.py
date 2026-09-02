@@ -1,23 +1,55 @@
 import os
-from dotenv import load_dotenv
+import streamlit as st
 
-# Load .env for local development
-load_dotenv()
-
-# Try to import streamlit for cloud deployment
+# Load .env into the environment (no-op if the file is absent, e.g. on Streamlit Cloud
+# where secrets come from st.secrets instead)
 try:
-    import streamlit as st
-    # Use Streamlit secrets if available (cloud), otherwise fall back to .env (local)
-    NEO4J_URI = st.secrets.get("NEO4J_URI", os.getenv("NEO4J_URI"))
-    NEO4J_USER = st.secrets.get("NEO4J_USER", os.getenv("NEO4J_USER"))
-    NEO4J_PASSWORD = st.secrets.get("NEO4J_PASSWORD", os.getenv("NEO4J_PASSWORD"))
-    OPENAI_API_KEY = st.secrets.get("OPENAI_API_KEY", os.getenv("OPENAI_API_KEY"))
-except (ImportError, AttributeError):
-    # Streamlit not available or secrets not configured, use environment variables
-    NEO4J_URI = os.getenv("NEO4J_URI")
-    NEO4J_USER = os.getenv("NEO4J_USER")
-    NEO4J_PASSWORD = os.getenv("NEO4J_PASSWORD")
-    OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
+    from dotenv import load_dotenv
+    load_dotenv()
+except ImportError:
+    pass
 
-OPENAI_BASE_URL = "https://openrouter.ai/api/v1"
-MODEL_NAME = "openai/gpt-oss-20b:free"  # Fast and free!
+# Safe function to get secrets with fallback
+def get_secret(key, default=None):
+    """Safely get secret from Streamlit secrets or environment variables"""
+    try:
+        # Try Streamlit secrets first
+        if hasattr(st, 'secrets') and key in st.secrets:
+            return st.secrets[key]
+    except Exception:
+        pass
+    
+    # Fall back to environment variables
+    return os.getenv(key, default)
+
+# Neo4j Configuration
+NEO4J_URI = get_secret("NEO4J_URI", "bolt://localhost:7687")
+NEO4J_USERNAME = get_secret("NEO4J_USERNAME", "neo4j")
+NEO4J_USER = get_secret("NEO4J_USER", NEO4J_USERNAME)  # Alias for compatibility
+NEO4J_PASSWORD = get_secret("NEO4J_PASSWORD", "password")
+
+# OpenAI/OpenRouter Configuration
+OPENAI_API_KEY = get_secret("OPENAI_API_KEY", None)
+OPENAI_BASE_URL = get_secret("OPENAI_BASE_URL", "https://openrouter.ai/api/v1")
+OPENAI_MODEL = get_secret("OPENAI_MODEL", "anthropic/claude-3.5-sonnet")
+
+# Groq Configuration (LangGraph agent)
+GROQ_API_KEY = get_secret("GROQ_API_KEY", None)
+GROQ_MODEL = get_secret("GROQ_MODEL", "openai/gpt-oss-120b")
+
+# Application Settings
+DEBUG = get_secret("DEBUG", "false").lower() == "true"
+
+# Print configuration status (for debugging)
+if DEBUG:
+    print("=" * 50)
+    print("Configuration Loaded:")
+    print(f"Neo4j URI: {NEO4J_URI}")
+    print(f"Neo4j Username: {NEO4J_USERNAME}")
+    print(f"Neo4j Password: {'*' * len(NEO4J_PASSWORD) if NEO4J_PASSWORD else 'Not Set'}")
+    print(f"OpenAI API Key: {'Set' if OPENAI_API_KEY else 'Not Set'}")
+    print(f"OpenAI Base URL: {OPENAI_BASE_URL}")
+    print(f"OpenAI Model: {OPENAI_MODEL}")
+    print(f"Groq API Key: {'Set' if GROQ_API_KEY else 'Not Set'}")
+    print(f"Groq Model: {GROQ_MODEL}")
+    print("=" * 50)
