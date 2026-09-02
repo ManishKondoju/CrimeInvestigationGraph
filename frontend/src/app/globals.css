@@ -1,0 +1,21 @@
+@import "tailwindcss";
+
+/* Page Theme Lock: this app is dark-only (OLED black, "Ethereal Glass" vibe
+   per the high-end-visual-design skill) - not driven by prefers-color-scheme,
+   so every page/section stays visually consistent regardless of OS setting. */
+:root {
+  --background: #050505;
+  --foreground: #ededed;
+}
+
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --font-sans: var(--font-geist-sans);
+  --font-mono: var(--font-geist-mono);
+}
+
+body {
+  background: var(--background);
+  color: var(--foreground);
+}

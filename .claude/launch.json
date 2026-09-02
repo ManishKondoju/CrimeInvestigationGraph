@@ -6,6 +6,12 @@
       "runtimeExecutable": "venv/bin/streamlit",
       "runtimeArgs": ["run", "app.py", "--server.headless", "true"],
       "port": 8501
+    },
+    {
+      "name": "crimegraphrag-frontend",
+      "runtimeExecutable": "npm",
+      "runtimeArgs": ["--prefix", "frontend", "run", "dev"],
+      "port": 3000
     }
   ]
 }
