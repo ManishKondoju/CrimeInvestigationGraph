@@ -15,10 +15,19 @@ import { NextRequest } from "next/server";
 // booted with, which makes "I set the var but it still says unset" hard to
 // reason about. Reading here means the values always reflect the current
 // runtime environment.
+// The deployed API's URL is public information, not a secret, so it ships
+// as the default rather than being something every deployment must be told.
+// BACKEND_URL still overrides it (needed to point a deployment at a
+// different API), and local dev falls back to localhost.
+const DEFAULT_BACKEND_URL =
+  process.env.NODE_ENV === "development"
+    ? "http://localhost:8000"
+    : "https://crimegraphrag-api.onrender.com";
+
 function readConfig() {
   const configured = process.env.BACKEND_URL;
   return {
-    backendUrl: configured ?? "http://localhost:8000",
+    backendUrl: configured ?? DEFAULT_BACKEND_URL,
     apiKey: process.env.API_KEY,
     backendUrlConfigured: !!configured,
   };
