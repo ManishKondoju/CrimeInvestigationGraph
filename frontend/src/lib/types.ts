@@ -29,3 +29,45 @@ export interface ChatTurn extends ChatMessage {
   cypher_queries?: CypherQuery[];
   context?: Record<string, unknown>;
 }
+
+// Mirrors backend/app/models/network.py and backend/app/routers/network.py.
+
+export const NETWORK_ENTITY_TYPES = [
+  "Organization",
+  "Person",
+  "Crime",
+  "Location",
+  "Investigator",
+  "Evidence",
+  "Weapon",
+  "Vehicle",
+] as const;
+
+export type NetworkEntityType = (typeof NETWORK_ENTITY_TYPES)[number];
+
+export interface EntityTypesResponse {
+  types: NetworkEntityType[];
+  colors: Record<string, string>;
+}
+
+export interface EntityOption {
+  id: string | number;
+  name: string;
+}
+
+export interface NetworkNode {
+  id: string | number;
+  label: string | null;
+  type: string;
+}
+
+export interface NetworkEdge {
+  source: string | number;
+  target: string | number;
+  label: string;
+}
+
+export interface NetworkGraph {
+  nodes: NetworkNode[];
+  edges: NetworkEdge[];
+}

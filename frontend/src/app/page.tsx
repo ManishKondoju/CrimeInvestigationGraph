@@ -25,7 +25,7 @@ const destinations = [
   { label: "AI Assistant", icon: ChatCircleDots, span: "md:col-span-8 md:row-span-2", href: "/chat" },
   { label: "Dashboard", icon: ChartBar, span: "md:col-span-4", href: undefined },
   { label: "Graph Algorithms", icon: Graph, span: "md:col-span-4", href: undefined },
-  { label: "Network Visualization", icon: ShareNetwork, span: "md:col-span-4", href: undefined },
+  { label: "Network Visualization", icon: ShareNetwork, span: "md:col-span-4", href: "/network" },
   { label: "Geographic Mapping", icon: MapTrifold, span: "md:col-span-4", href: undefined },
   { label: "Timeline Analysis", icon: ClockCountdown, span: "md:col-span-4", href: undefined },
   { label: "Graph Schema", icon: Article, span: "md:col-span-4", href: undefined },
