@@ -692,7 +692,7 @@ export function AssistantPreview() {
       // stretched across it: the card is far wider than the scene, and
       // slicing to fill cropped the composition badly. This also keeps the
       // left of the card clear for the title.
-      className="preview-scene pointer-events-none absolute bottom-0 right-0 top-0 h-full w-auto"
+      className="preview-scene pointer-events-none absolute bottom-0 right-0 h-[86%] w-auto"
       preserveAspectRatio="xMaxYMid meet"
       aria-hidden
       role="presentation"

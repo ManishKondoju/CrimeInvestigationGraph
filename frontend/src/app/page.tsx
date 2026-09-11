@@ -19,8 +19,18 @@ import type { DashboardActivity } from "@/lib/types";
 // dispatch board of available modules, per the Tactical Telemetry
 // archetype (industrial-brutalist-ui skill).
 
-const MODULES = [
-  { id: "D-01", label: "AI ASSISTANT", href: "/chat", desc: "NATURAL-LANGUAGE QUERY // LANGGRAPH AGENT", status: "ONLINE", preview: true, span: "md:col-span-2" },
+interface Module {
+  id: string;
+  label: string;
+  href: string | null;
+  desc: string;
+  status: string;
+  /** Cards with a preview scene expand on hover instead of flood-filling. */
+  preview?: boolean;
+}
+
+const MODULES: Module[] = [
+  { id: "D-01", label: "AI ASSISTANT", href: "/chat", desc: "NATURAL-LANGUAGE QUERY // LANGGRAPH AGENT", status: "ONLINE", preview: true },
   { id: "D-02", label: "NETWORK", href: "/network", desc: "FORCE-DIRECTED ASSOCIATION GRAPH", status: "ONLINE" },
   { id: "D-03", label: "GEOSPATIAL", href: "/geo", desc: "INCIDENT MAP // DBSCAN HOTSPOTS", status: "ONLINE" },
   { id: "D-04", label: "SCHEMA", href: "/schema", desc: "LIVE GRAPH STRUCTURE // EXPORTS", status: "ONLINE" },
@@ -111,7 +121,7 @@ export default function Home() {
           <span>{">>>"}</span>
         </div>
 
-        <RuledGrid className="grid-cols-1 md:grid-cols-2 lg:grid-cols-3">
+        <RuledGrid className="grid-cols-1 overflow-visible md:grid-cols-2 lg:grid-cols-3">
           {MODULES.map((m, i) => {
             const online = !!m.href;
             const body = (
@@ -119,16 +129,18 @@ export default function Home() {
                 initial={{ opacity: 0 }}
                 animate={{ opacity: 1 }}
                 transition={{ duration: 0.3, delay: 0.1 + i * 0.05 }}
-                className={`group relative flex h-full min-h-[188px] flex-col justify-between overflow-hidden bg-substrate-raised p-4 transition-colors duration-150 ${
+                className={`group relative flex h-full flex-col justify-between overflow-hidden bg-substrate-raised p-4 ${
                   !online
                     ? "opacity-45"
                     : m.preview
-                      // Cards carrying a preview must not flood with hazard on
-                      // hover - the scene would be unreadable against it. They
-                      // take a hazard edge instead and let the preview be the
-                      // hover payoff.
-                      ? "hover:ring-1 hover:ring-inset hover:ring-hazard"
-                      : "hover:bg-hazard"
+                      // Preview cards keep their original footprint and expand
+                      // on hover instead. Scaling (rather than growing the grid
+                      // cell) means the card lifts over its neighbours without
+                      // reflowing the whole board. They also can't use the
+                      // hazard flood-fill - the scene would be unreadable
+                      // against it - so they take a hazard edge instead.
+                      ? "z-0 origin-center transition-transform duration-300 ease-[cubic-bezier(0.2,0.8,0.2,1)] hover:z-20 hover:scale-[1.12] hover:shadow-[0_18px_50px_rgba(0,0,0,0.75)] hover:ring-1 hover:ring-inset hover:ring-hazard"
+                      : "transition-colors duration-150 hover:bg-hazard"
                 }`}
               >
                 {m.preview && <AssistantPreview />}
@@ -187,11 +199,11 @@ export default function Home() {
             );
 
             return online ? (
-              <Link key={m.id} href={m.href!} className={`block ${m.span ?? ""}`}>
+              <Link key={m.id} href={m.href!} className="block">
                 {body}
               </Link>
             ) : (
-              <div key={m.id} className={m.span ?? ""}>{body}</div>
+              <div key={m.id}>{body}</div>
             );
           })}
         </RuledGrid>
