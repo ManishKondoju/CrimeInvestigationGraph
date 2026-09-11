@@ -139,7 +139,10 @@ export default function Home() {
                       // reflowing the whole board. They also can't use the
                       // hazard flood-fill - the scene would be unreadable
                       // against it - so they take a hazard edge instead.
-                      ? "z-0 origin-center transition-transform duration-300 ease-[cubic-bezier(0.2,0.8,0.2,1)] hover:z-20 hover:scale-[1.12] hover:shadow-[0_18px_50px_rgba(0,0,0,0.75)] hover:ring-1 hover:ring-inset hover:ring-hazard"
+                      // The card itself does not move or scale - scaling read
+                      // as the card popping toward the viewer. The scene
+                      // slides in laterally from the right edge instead.
+                      ? "transition-colors duration-300 hover:ring-1 hover:ring-inset hover:ring-hazard"
                       : "transition-colors duration-150 hover:bg-hazard"
                 }`}
               >
@@ -166,7 +169,7 @@ export default function Home() {
                   </span>
                 </div>
 
-                <div className={`relative z-10 mt-10 ${m.preview ? "" : ""}`}>
+                <div className={`relative z-10 mt-10 ${m.preview ? "preview-copy" : ""}`}>
                   <div
                     className={`display text-2xl text-phosphor ${
                       m.preview ? "" : "group-hover:text-substrate"

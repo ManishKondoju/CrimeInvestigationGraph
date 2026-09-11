@@ -237,20 +237,36 @@ input[type="date"]::-webkit-calendar-picker-indicator {
    briefly on a slow cycle at low opacity so the board feels alive without
    competing with the labels. Hover: the cycle is cancelled and the scene
    goes fully opaque. */
-@keyframes preview-breathe {
-  0%, 62%   { opacity: 0; }
-  72%, 88%  { opacity: 0.26; }
-  100%      { opacity: 0; }
+/* The scene always enters from the right edge. Idle is a partial peek, so
+   the periodic appearance and the hover reveal are the same gesture at two
+   intensities - nothing pops toward the viewer. */
+@keyframes preview-peek {
+  0%, 62%   { opacity: 0; transform: translateX(26%); }
+  72%, 88%  { opacity: 0.26; transform: translateX(6%); }
+  100%      { opacity: 0; transform: translateX(26%); }
 }
 
 .preview-scene {
-  animation: preview-breathe 9s ease-in-out infinite;
+  transform: translateX(26%);
+  animation: preview-peek 9s ease-in-out infinite;
 }
 
-/* Hover wins over the idle cycle entirely. */
+/* Hover cancels the idle cycle and slides the scene fully in. */
 .group:hover .preview-scene {
   animation: none;
   opacity: 1;
+  transform: translateX(0);
+  transition:
+    transform 420ms cubic-bezier(0.2, 0.8, 0.2, 1),
+    opacity 320ms ease-out;
+}
+
+/* Text eases aside so the scene has somewhere to arrive. */
+.preview-copy {
+  transition: transform 420ms cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+.group:hover .preview-copy {
+  transform: translateX(-6px);
 }
 
 /* A transcript line writing itself across the console. */
@@ -286,7 +302,8 @@ input[type="date"]::-webkit-calendar-picker-indicator {
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .preview-scene { animation: none; opacity: 0.2; }
-  .group:hover .preview-scene { opacity: 1; }
+  .preview-scene { animation: none; opacity: 0.2; transform: none; }
+  .group:hover .preview-scene { opacity: 1; transform: none; transition: none; }
+  .preview-copy, .group:hover .preview-copy { transform: none; transition: none; }
   .preview-line, .preview-caret, .preview-operator { animation: none; }
 }
