@@ -231,3 +231,62 @@ input[type="date"]::-webkit-calendar-picker-indicator {
   .constellation-halo,
   .constellation-edge { animation: none; }
 }
+
+/* --- Module preview scenes ------------------------------------------
+   Ambient previews inside the index module cards. Idle: the scene surfaces
+   briefly on a slow cycle at low opacity so the board feels alive without
+   competing with the labels. Hover: the cycle is cancelled and the scene
+   goes fully opaque. */
+@keyframes preview-breathe {
+  0%, 62%   { opacity: 0; }
+  72%, 88%  { opacity: 0.26; }
+  100%      { opacity: 0; }
+}
+
+.preview-scene {
+  animation: preview-breathe 9s ease-in-out infinite;
+}
+
+/* Hover wins over the idle cycle entirely. */
+.group:hover .preview-scene {
+  animation: none;
+  opacity: 1;
+}
+
+/* A transcript line writing itself across the console. */
+@keyframes preview-line {
+  0%, 6%    { transform: scaleX(0); opacity: 0; }
+  16%       { transform: scaleX(1); opacity: 1; }
+  80%       { transform: scaleX(1); opacity: 1; }
+  90%, 100% { transform: scaleX(1); opacity: 0; }
+}
+
+.preview-line {
+  transform-box: fill-box;
+  transform-origin: left center;
+  animation: preview-line 5.5s ease-out infinite;
+}
+
+/* Caret on the operator's console. */
+@keyframes preview-caret {
+  0%, 49%   { opacity: 1; }
+  50%, 100% { opacity: 0; }
+}
+.preview-caret { animation: preview-caret 1s steps(1) infinite; }
+
+/* The operator works - a small, slow lean toward the console. */
+@keyframes preview-operator {
+  0%, 100% { transform: translateY(0) rotate(0deg); }
+  50%      { transform: translateY(-1.5px) rotate(-1.2deg); }
+}
+.preview-operator {
+  transform-box: fill-box;
+  transform-origin: 50% 100%;
+  animation: preview-operator 4s ease-in-out infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .preview-scene { animation: none; opacity: 0.2; }
+  .group:hover .preview-scene { opacity: 1; }
+  .preview-line, .preview-caret, .preview-operator { animation: none; }
+}

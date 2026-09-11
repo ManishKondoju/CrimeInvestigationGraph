@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import { motion } from "motion/react";
 import {
+  AssistantPreview,
   EASE,
   IncidentTicker,
   RuledGrid,
@@ -19,7 +20,7 @@ import type { DashboardActivity } from "@/lib/types";
 // archetype (industrial-brutalist-ui skill).
 
 const MODULES = [
-  { id: "D-01", label: "AI ASSISTANT", href: "/chat", desc: "NATURAL-LANGUAGE QUERY // LANGGRAPH AGENT", status: "ONLINE" },
+  { id: "D-01", label: "AI ASSISTANT", href: "/chat", desc: "NATURAL-LANGUAGE QUERY // LANGGRAPH AGENT", status: "ONLINE", preview: true, span: "md:col-span-2" },
   { id: "D-02", label: "NETWORK", href: "/network", desc: "FORCE-DIRECTED ASSOCIATION GRAPH", status: "ONLINE" },
   { id: "D-03", label: "GEOSPATIAL", href: "/geo", desc: "INCIDENT MAP // DBSCAN HOTSPOTS", status: "ONLINE" },
   { id: "D-04", label: "SCHEMA", href: "/schema", desc: "LIVE GRAPH STRUCTURE // EXPORTS", status: "ONLINE" },
@@ -118,34 +119,64 @@ export default function Home() {
                 initial={{ opacity: 0 }}
                 animate={{ opacity: 1 }}
                 transition={{ duration: 0.3, delay: 0.1 + i * 0.05 }}
-                className={`group relative flex h-full flex-col justify-between bg-substrate-raised p-4 transition-colors duration-150 ${
-                  online ? "hover:bg-hazard" : "opacity-45"
+                className={`group relative flex h-full min-h-[188px] flex-col justify-between overflow-hidden bg-substrate-raised p-4 transition-colors duration-150 ${
+                  !online
+                    ? "opacity-45"
+                    : m.preview
+                      // Cards carrying a preview must not flood with hazard on
+                      // hover - the scene would be unreadable against it. They
+                      // take a hazard edge instead and let the preview be the
+                      // hover payoff.
+                      ? "hover:ring-1 hover:ring-inset hover:ring-hazard"
+                      : "hover:bg-hazard"
                 }`}
               >
-                <div className="flex items-start justify-between">
-                  <span className="telemetry text-phosphor-faint group-hover:text-substrate">
+                {m.preview && <AssistantPreview />}
+
+                <div className="relative z-10 flex items-start justify-between">
+                  <span
+                    className={`telemetry text-phosphor-faint ${
+                      m.preview ? "" : "group-hover:text-substrate"
+                    }`}
+                  >
                     {m.id}
                   </span>
                   <span
                     className={`telemetry ${
-                      online ? "text-terminal group-hover:text-substrate" : "text-phosphor-faint"
+                      !online
+                        ? "text-phosphor-faint"
+                        : m.preview
+                          ? "text-terminal"
+                          : "text-terminal group-hover:text-substrate"
                     }`}
                   >
                     {m.status}
                   </span>
                 </div>
 
-                <div className="mt-10">
-                  <div className="display text-2xl text-phosphor group-hover:text-substrate">
+                <div className={`relative z-10 mt-10 ${m.preview ? "" : ""}`}>
+                  <div
+                    className={`display text-2xl text-phosphor ${
+                      m.preview ? "" : "group-hover:text-substrate"
+                    }`}
+                  >
                     {m.label}
                   </div>
-                  <div className="telemetry mt-1.5 text-phosphor-dim group-hover:text-substrate/80">
+                  <div
+                    className={`telemetry mt-1.5 text-phosphor-dim ${
+                      m.preview ? "group-hover:text-phosphor" : "group-hover:text-substrate/80"
+                    }`}
+                  >
                     {m.desc}
                   </div>
                 </div>
 
                 {online && (
-                  <div className="telemetry mt-4 flex items-center justify-between text-phosphor-faint group-hover:text-substrate">
+                  <div
+                    className={`telemetry relative z-10 mt-4 flex items-center justify-between text-phosphor-faint ${
+                      m.preview ? "group-hover:text-hazard" : "group-hover:text-substrate"
+                    }`}
+                  >
                     <span>ENGAGE</span>
                     <span className="transition-transform duration-150 group-hover:translate-x-1">
                       {"->"}
@@ -156,11 +187,11 @@ export default function Home() {
             );
 
             return online ? (
-              <Link key={m.id} href={m.href!} className="block">
+              <Link key={m.id} href={m.href!} className={`block ${m.span ?? ""}`}>
                 {body}
               </Link>
             ) : (
-              <div key={m.id}>{body}</div>
+              <div key={m.id} className={m.span ?? ""}>{body}</div>
             );
           })}
         </RuledGrid>

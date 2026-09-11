@@ -662,3 +662,123 @@ export function GraphConstellation() {
     </div>
   );
 }
+
+/* ------------------------------------------------------------------ */
+/* MODULE PREVIEWS                                                     */
+/* ------------------------------------------------------------------ */
+
+/**
+ * AI ASSISTANT preview: an analyst seated at a console while the agent
+ * writes a transcript back to them.
+ *
+ * Drawn rather than illustrated with an asset - a stock image would break
+ * the system's line-work discipline. Sits behind the card's label layer,
+ * so the title stays readable at all times.
+ */
+export function AssistantPreview() {
+  // Response lines: x-offset, width, and the delay that staggers them so
+  // the transcript appears to stream rather than land all at once.
+  const lines: [number, number, number][] = [
+    [150, 92, 1.5],
+    [150, 118, 1.9],
+    [150, 74, 2.3],
+    [150, 104, 2.7],
+  ];
+
+  return (
+    <svg
+      viewBox="0 0 320 150"
+      // Anchored to the card's right edge at its natural aspect rather than
+      // stretched across it: the card is far wider than the scene, and
+      // slicing to fill cropped the composition badly. This also keeps the
+      // left of the card clear for the title.
+      className="preview-scene pointer-events-none absolute bottom-0 right-0 top-0 h-full w-auto"
+      preserveAspectRatio="xMaxYMid meet"
+      aria-hidden
+      role="presentation"
+    >
+      {/* Console glow pooled on the desk */}
+      <ellipse cx="212" cy="118" rx="86" ry="9" fill="var(--hazard)" opacity="0.06" />
+
+      {/* Desk */}
+      <rect x="16" y="116" width="288" height="1.5" fill="var(--phosphor-faint)" opacity="0.55" />
+
+      {/* Seated operator, back to us, facing the console */}
+      <g className="preview-operator" opacity="0.62">
+        {/* chair back */}
+        <rect x="40" y="86" width="3" height="30" fill="var(--phosphor-faint)" />
+        <rect x="40" y="84" width="26" height="3" fill="var(--phosphor-faint)" />
+        {/* torso */}
+        <path
+          d="M56 116 L60 82 Q72 74 84 82 L88 116 Z"
+          fill="none"
+          stroke="var(--phosphor-dim)"
+          strokeWidth="1.6"
+        />
+        {/* head */}
+        <circle cx="72" cy="64" r="11" fill="none" stroke="var(--phosphor-dim)" strokeWidth="1.6" />
+        {/* arm reaching to the keyboard */}
+        <path
+          d="M86 92 Q104 96 116 108"
+          fill="none"
+          stroke="var(--phosphor-dim)"
+          strokeWidth="1.6"
+          strokeLinecap="round"
+        />
+      </g>
+
+      {/* Keyboard */}
+      <rect x="112" y="110" width="34" height="4" fill="var(--phosphor-faint)" opacity="0.7" />
+
+      {/* Console screen */}
+      <g>
+        <rect
+          x="140"
+          y="26"
+          width="158"
+          height="78"
+          fill="var(--substrate)"
+          stroke="var(--rule)"
+          strokeWidth="1.2"
+        />
+        {/* screen header bar */}
+        <rect x="140" y="26" width="158" height="9" fill="var(--rule)" opacity="0.6" />
+        <circle cx="147" cy="30.5" r="1.6" fill="var(--hazard)" />
+
+        {/* the analyst's query, in hazard */}
+        <rect
+          className="preview-line"
+          x="148"
+          y="44"
+          width="72"
+          height="3"
+          rx="0"
+          fill="var(--hazard)"
+          style={{ animationDelay: "0s" }}
+        />
+
+        {/* agent response streaming back */}
+        {lines.map(([x, w, delay], i) => (
+          <rect
+            key={i}
+            className="preview-line"
+            x={x - 2}
+            y={56 + i * 9}
+            width={w}
+            height={2.5}
+            fill="var(--phosphor-dim)"
+            opacity="0.85"
+            style={{ animationDelay: `${delay}s` }}
+          />
+        ))}
+
+        {/* caret */}
+        <rect className="preview-caret" x="148" y="92" width="5" height="3" fill="var(--hazard)" />
+      </g>
+
+      {/* Monitor stand */}
+      <rect x="212" y="104" width="4" height="10" fill="var(--phosphor-faint)" opacity="0.7" />
+      <rect x="200" y="114" width="28" height="2" fill="var(--phosphor-faint)" opacity="0.7" />
+    </svg>
+  );
+}
