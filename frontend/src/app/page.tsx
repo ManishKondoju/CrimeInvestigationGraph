@@ -5,7 +5,11 @@ import Link from "next/link";
 import { motion } from "motion/react";
 import {
   AssistantPreview,
+  DashboardPreview,
   EASE,
+  GeoPreview,
+  NetworkPreview,
+  SchemaPreview,
   IncidentTicker,
   RuledGrid,
   SirenBeacon,
@@ -25,16 +29,25 @@ interface Module {
   href: string | null;
   desc: string;
   status: string;
-  /** Cards with a preview scene expand on hover instead of flood-filling. */
-  preview?: boolean;
+  /** Which preview scene the card carries, if any. Cards with a preview
+   *  slide their scene in on hover rather than flood-filling with hazard. */
+  preview?: keyof typeof PREVIEWS;
 }
 
+const PREVIEWS = {
+  assistant: AssistantPreview,
+  network: NetworkPreview,
+  geo: GeoPreview,
+  schema: SchemaPreview,
+  dashboard: DashboardPreview,
+} as const;
+
 const MODULES: Module[] = [
-  { id: "D-01", label: "AI ASSISTANT", href: "/chat", desc: "NATURAL-LANGUAGE QUERY // LANGGRAPH AGENT", status: "ONLINE", preview: true },
-  { id: "D-02", label: "NETWORK", href: "/network", desc: "FORCE-DIRECTED ASSOCIATION GRAPH", status: "ONLINE" },
-  { id: "D-03", label: "GEOSPATIAL", href: "/geo", desc: "INCIDENT MAP // DBSCAN HOTSPOTS", status: "ONLINE" },
-  { id: "D-04", label: "SCHEMA", href: "/schema", desc: "LIVE GRAPH STRUCTURE // EXPORTS", status: "ONLINE" },
-  { id: "D-05", label: "DASHBOARD", href: "/dashboard", desc: "EXECUTIVE OVERVIEW // THREAT POSTURE", status: "ONLINE" },
+  { id: "D-01", label: "AI ASSISTANT", href: "/chat", desc: "NATURAL-LANGUAGE QUERY // LANGGRAPH AGENT", status: "ONLINE", preview: "assistant" },
+  { id: "D-02", label: "NETWORK", href: "/network", desc: "FORCE-DIRECTED ASSOCIATION GRAPH", status: "ONLINE", preview: "network" },
+  { id: "D-03", label: "GEOSPATIAL", href: "/geo", desc: "INCIDENT MAP // DBSCAN HOTSPOTS", status: "ONLINE", preview: "geo" },
+  { id: "D-04", label: "SCHEMA", href: "/schema", desc: "LIVE GRAPH STRUCTURE // EXPORTS", status: "ONLINE", preview: "schema" },
+  { id: "D-05", label: "DASHBOARD", href: "/dashboard", desc: "EXECUTIVE OVERVIEW // THREAT POSTURE", status: "ONLINE", preview: "dashboard" },
   { id: "D-06", label: "TIMELINE", href: null, desc: "TEMPORAL PATTERN ANALYSIS", status: "OFFLINE" },
   { id: "D-07", label: "ALGORITHMS", href: null, desc: "CENTRALITY // COMMUNITY DETECTION", status: "OFFLINE" },
 ];
@@ -146,7 +159,7 @@ export default function Home() {
                       : "transition-colors duration-150 hover:bg-hazard"
                 }`}
               >
-                {m.preview && <AssistantPreview />}
+                {m.preview && (() => { const Scene = PREVIEWS[m.preview]; return <Scene />; })()}
 
                 <div className="relative z-10 flex items-start justify-between">
                   <span

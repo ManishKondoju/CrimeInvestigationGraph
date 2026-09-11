@@ -307,3 +307,80 @@ input[type="date"]::-webkit-calendar-picker-indicator {
   .preview-copy, .group:hover .preview-copy { transform: none; transition: none; }
   .preview-line, .preview-caret, .preview-operator { animation: none; }
 }
+
+/* --- Preview scene primitives ---------------------------------------
+   Shared vocabulary for every module preview so the four scenes read as
+   one system: elements draw, pop, drop, bloom or fill, all on the same
+   5.5s loop, staggered per element via animation-delay. */
+
+/* A stroke drawing itself. Elements set their own stroke-dasharray. */
+@keyframes preview-draw {
+  0%, 6%    { stroke-dashoffset: 240; opacity: 0; }
+  14%       { opacity: 1; }
+  34%       { stroke-dashoffset: 0; opacity: 1; }
+  82%       { stroke-dashoffset: 0; opacity: 1; }
+  92%, 100% { stroke-dashoffset: 0; opacity: 0; }
+}
+.preview-draw {
+  stroke-dasharray: 240;
+  animation: preview-draw 5.5s ease-out infinite;
+}
+
+/* A node arriving. */
+@keyframes preview-pop {
+  0%, 8%    { transform: scale(0); opacity: 0; }
+  20%       { transform: scale(1.25); opacity: 1; }
+  28%       { transform: scale(1); opacity: 1; }
+  82%       { transform: scale(1); opacity: 1; }
+  92%, 100% { transform: scale(1); opacity: 0; }
+}
+.preview-pop {
+  transform-box: fill-box;
+  transform-origin: center;
+  animation: preview-pop 5.5s ease-out infinite;
+}
+
+/* An incident pin falling onto the map. */
+@keyframes preview-drop {
+  0%, 8%    { transform: translateY(-16px); opacity: 0; }
+  24%       { transform: translateY(0); opacity: 1; }
+  82%       { transform: translateY(0); opacity: 1; }
+  92%, 100% { transform: translateY(0); opacity: 0; }
+}
+.preview-drop {
+  transform-box: fill-box;
+  transform-origin: center bottom;
+  animation: preview-drop 5.5s cubic-bezier(0.3, 1.4, 0.5, 1) infinite;
+}
+
+/* A hotspot ring expanding out of a cluster. */
+@keyframes preview-bloom {
+  0%, 20%   { transform: scale(0.2); opacity: 0; }
+  34%       { opacity: 0.55; }
+  70%, 100% { transform: scale(1.9); opacity: 0; }
+}
+.preview-bloom {
+  transform-box: fill-box;
+  transform-origin: center;
+  animation: preview-bloom 5.5s ease-out infinite;
+}
+
+/* A gauge column filling from its base. */
+@keyframes preview-fill {
+  0%, 8%    { transform: scaleY(0); opacity: 0; }
+  30%       { transform: scaleY(1); opacity: 1; }
+  82%       { transform: scaleY(1); opacity: 1; }
+  92%, 100% { transform: scaleY(1); opacity: 0; }
+}
+.preview-fill {
+  transform-box: fill-box;
+  transform-origin: center bottom;
+  animation: preview-fill 5.5s cubic-bezier(0.2, 0.8, 0.2, 1) infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .preview-draw, .preview-pop, .preview-drop, .preview-bloom, .preview-fill {
+    animation: none;
+    stroke-dashoffset: 0;
+  }
+}

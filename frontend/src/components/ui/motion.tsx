@@ -686,17 +686,7 @@ export function AssistantPreview() {
   ];
 
   return (
-    <svg
-      viewBox="0 0 320 150"
-      // Anchored to the card's right edge at its natural aspect rather than
-      // stretched across it: the card is far wider than the scene, and
-      // slicing to fill cropped the composition badly. This also keeps the
-      // left of the card clear for the title.
-      className="preview-scene pointer-events-none absolute bottom-0 right-0 h-[86%] w-auto"
-      preserveAspectRatio="xMaxYMid meet"
-      aria-hidden
-      role="presentation"
-    >
+    <PreviewFrame>
       {/* Console glow pooled on the desk */}
       <ellipse cx="212" cy="118" rx="86" ry="9" fill="var(--hazard)" opacity="0.06" />
 
@@ -779,6 +769,240 @@ export function AssistantPreview() {
       {/* Monitor stand */}
       <rect x="212" y="104" width="4" height="10" fill="var(--phosphor-faint)" opacity="0.7" />
       <rect x="200" y="114" width="28" height="2" fill="var(--phosphor-faint)" opacity="0.7" />
+    </PreviewFrame>
+  );
+}
+
+/** Shared frame for every module preview: same box, same placement. */
+function PreviewFrame({ children }: { children: React.ReactNode }) {
+  return (
+    <svg
+      viewBox="0 0 320 150"
+      className="preview-scene pointer-events-none absolute bottom-0 right-0 h-[86%] w-auto"
+      preserveAspectRatio="xMaxYMid meet"
+      aria-hidden
+      role="presentation"
+    >
+      {children}
     </svg>
+  );
+}
+
+/** NETWORK: an association graph assembling itself, edges tracing outward. */
+export function NetworkPreview() {
+  const nodes: [number, number, number, number][] = [
+    // x, y, r, delay
+    [176, 74, 7, 0],
+    [232, 44, 4.5, 0.35],
+    [244, 104, 4.5, 0.5],
+    [128, 44, 4.5, 0.65],
+    [120, 108, 4.5, 0.8],
+    [288, 72, 4, 0.95],
+    [196, 128, 4, 1.1],
+  ];
+  const edges: [number, number, number, number, number][] = [
+    [176, 74, 232, 44, 0.3],
+    [176, 74, 244, 104, 0.45],
+    [176, 74, 128, 44, 0.6],
+    [176, 74, 120, 108, 0.75],
+    [232, 44, 288, 72, 0.9],
+    [244, 104, 288, 72, 1.0],
+    [120, 108, 196, 128, 1.15],
+  ];
+
+  return (
+    <PreviewFrame>
+      {edges.map(([x1, y1, x2, y2, d], i) => (
+        <line
+          key={i}
+          className="preview-draw"
+          x1={x1}
+          y1={y1}
+          x2={x2}
+          y2={y2}
+          stroke="var(--phosphor-dim)"
+          strokeWidth="1"
+          opacity="0.7"
+          style={{ animationDelay: `${d}s` }}
+        />
+      ))}
+      {nodes.map(([cx, cy, r, d], i) => (
+        <g key={i} className="preview-pop" style={{ animationDelay: `${d}s` }}>
+          <circle cx={cx} cy={cy} r={r * 2.4} fill="var(--hazard)" opacity={i === 0 ? 0.1 : 0.05} />
+          <circle
+            cx={cx}
+            cy={cy}
+            r={r}
+            fill={i === 0 ? "var(--hazard)" : "var(--phosphor-dim)"}
+          />
+        </g>
+      ))}
+    </PreviewFrame>
+  );
+}
+
+/** GEOSPATIAL: incidents dropping onto a city grid, hotspots blooming. */
+export function GeoPreview() {
+  const pins: [number, number, number, boolean][] = [
+    [150, 60, 0.2, false],
+    [196, 96, 0.45, true],
+    [238, 52, 0.7, false],
+    [268, 100, 0.95, false],
+    [172, 118, 1.2, false],
+    [216, 34, 1.45, false],
+  ];
+
+  return (
+    <PreviewFrame>
+      {/* Street grid */}
+      <g stroke="var(--phosphor-faint)" strokeWidth="0.8" opacity="0.4">
+        {[24, 52, 80, 108, 136].map((y) => (
+          <line key={`h${y}`} x1="110" y1={y} x2="310" y2={y} />
+        ))}
+        {[130, 168, 206, 244, 282].map((x) => (
+          <line key={`v${x}`} x1={x} y1="16" x2={x} y2="142" />
+        ))}
+      </g>
+
+      {/* Hotspot blooms under the densest cluster */}
+      {[0, 1.6].map((d, i) => (
+        <circle
+          key={i}
+          className="preview-bloom"
+          cx="196"
+          cy="96"
+          r="26"
+          fill="none"
+          stroke="var(--hazard)"
+          strokeWidth="1.4"
+          style={{ animationDelay: `${0.8 + d}s` }}
+        />
+      ))}
+
+      {/* Incident pins */}
+      {pins.map(([x, y, d, hot], i) => (
+        <g key={i} className="preview-drop" style={{ animationDelay: `${d}s` }}>
+          <path
+            d={`M${x} ${y} c-5 -7 -8 -10 -8 -14 a8 8 0 0 1 16 0 c0 4 -3 7 -8 14 z`}
+            fill={hot ? "var(--hazard)" : "var(--phosphor-dim)"}
+          />
+          <circle cx={x} cy={y - 14} r="2.6" fill="var(--substrate)" />
+        </g>
+      ))}
+    </PreviewFrame>
+  );
+}
+
+/** SCHEMA: labelled entity boxes wiring themselves into the graph schema. */
+export function SchemaPreview() {
+  const boxes: [number, number, number, number, string, number][] = [
+    // x, y, w, h, label, delay
+    [180, 22, 62, 20, "CRIME", 0],
+    [116, 68, 58, 20, "PERSON", 0.4],
+    [248, 68, 62, 20, "EVIDENCE", 0.6],
+    [176, 112, 66, 20, "LOCATION", 0.8],
+  ];
+  const links: [number, number, number, number, number][] = [
+    [180, 40, 160, 68, 0.5],
+    [242, 40, 268, 68, 0.7],
+    [211, 42, 209, 112, 0.9],
+  ];
+
+  return (
+    <PreviewFrame>
+      {links.map(([x1, y1, x2, y2, d], i) => (
+        <line
+          key={i}
+          className="preview-draw"
+          x1={x1}
+          y1={y1}
+          x2={x2}
+          y2={y2}
+          stroke="var(--phosphor-faint)"
+          strokeWidth="1"
+          style={{ animationDelay: `${d}s` }}
+        />
+      ))}
+      {boxes.map(([x, y, w, h, label, d], i) => (
+        <g key={i} className="preview-pop" style={{ animationDelay: `${d}s` }}>
+          <rect
+            x={x}
+            y={y}
+            width={w}
+            height={h}
+            fill="var(--substrate)"
+            stroke={i === 0 ? "var(--hazard)" : "var(--rule)"}
+            strokeWidth="1.2"
+          />
+          <text
+            x={x + w / 2}
+            y={y + h / 2 + 3}
+            textAnchor="middle"
+            fill={i === 0 ? "var(--hazard)" : "var(--phosphor-dim)"}
+            style={{
+              fontSize: 8,
+              letterSpacing: "0.1em",
+              fontFamily: "var(--font-jetbrains-mono), monospace",
+            }}
+          >
+            {label}
+          </text>
+        </g>
+      ))}
+    </PreviewFrame>
+  );
+}
+
+/** DASHBOARD: gauges filling and a trend line drawing across. */
+export function DashboardPreview() {
+  const bars: [number, number, number][] = [
+    // x, height, delay
+    [140, 30, 0],
+    [162, 48, 0.12],
+    [184, 22, 0.24],
+    [206, 58, 0.36],
+    [228, 40, 0.48],
+    [250, 66, 0.6],
+    [272, 34, 0.72],
+  ];
+  const baseY = 118;
+
+  return (
+    <PreviewFrame>
+      {/* Axis */}
+      <line x1="128" y1={baseY} x2="300" y2={baseY} stroke="var(--phosphor-faint)" strokeWidth="1" opacity="0.6" />
+
+      {bars.map(([x, h, d], i) => (
+        <rect
+          key={i}
+          className="preview-fill"
+          x={x}
+          y={baseY - h}
+          width="13"
+          height={h}
+          fill={h > 55 ? "var(--hazard)" : "var(--phosphor-faint)"}
+          opacity={h > 55 ? 0.9 : 0.75}
+          style={{ animationDelay: `${d}s` }}
+        />
+      ))}
+
+      {/* Trend line across the tops */}
+      <polyline
+        className="preview-draw"
+        points={bars.map(([x, h]) => `${x + 6.5},${baseY - h - 7}`).join(" ")}
+        fill="none"
+        stroke="var(--hazard)"
+        strokeWidth="1.4"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        style={{ animationDelay: "0.9s" }}
+      />
+
+      {/* A KPI readout above the chart */}
+      <g className="preview-pop" style={{ animationDelay: "0.3s" }}>
+        <rect x="128" y="26" width="54" height="5" fill="var(--phosphor-faint)" opacity="0.7" />
+        <rect x="128" y="37" width="34" height="11" fill="var(--phosphor-dim)" opacity="0.85" />
+      </g>
+    </PreviewFrame>
   );
 }
