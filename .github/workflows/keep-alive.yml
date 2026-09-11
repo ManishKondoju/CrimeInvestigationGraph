@@ -1,0 +1,106 @@
+# Keeps the Neo4j Aura Free instance from auto-pausing.
+#
+# Aura Free pauses an instance after 3 consecutive days with no activity.
+# This workflow opens a real connection and runs a read query, which counts
+# as activity and resets that timer.
+#
+# WHY DAILY RATHER THAN EVERY 2 DAYS:
+# GitHub does not guarantee scheduled runs. They are delayed under load and
+# may be skipped entirely. On a 2-day cadence a single skipped run means a
+# 4-day gap, which exceeds the 3-day limit and the instance pauses. Running
+# daily means it takes three consecutive failures to lose the instance.
+# The run takes ~10 seconds, so the extra frequency is effectively free.
+#
+# The minute is deliberately not :00 - the top of the hour is the most
+# contended slot on GitHub's scheduler and the most likely to be delayed.
+
+name: Keep Aura Alive
+
+on:
+  schedule:
+    # 08:17 UTC daily. Cron on GitHub is always UTC (no local timezone).
+    - cron: '17 8 * * *'
+  workflow_dispatch:        # adds the "Run workflow" button in the Actions tab
+
+# If a run is somehow still going when the next fires, don't stack them.
+concurrency:
+  group: keep-alive
+  cancel-in-progress: false
+
+jobs:
+  ping:
+    name: Ping Aura
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+
+    steps:
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install Neo4j driver
+        # Pinned to match backend/requirements.txt so this exercises the same
+        # driver the application uses.
+        run: pip install --quiet neo4j==5.18.0
+
+      - name: Ping Aura
+        env:
+          NEO4J_URI: ${{ secrets.NEO4J_URI }}
+          NEO4J_USER: ${{ secrets.NEO4J_USER }}
+          NEO4J_PASSWORD: ${{ secrets.NEO4J_PASSWORD }}
+        run: |
+          python - <<'PY'
+          import os, sys, time
+          from neo4j import GraphDatabase
+          from neo4j.exceptions import Neo4jError
+
+          uri  = os.environ.get("NEO4J_URI", "")
+          user = os.environ.get("NEO4J_USER", "")
+          pwd  = os.environ.get("NEO4J_PASSWORD", "")
+
+          # Fail with a clear message rather than an opaque driver error if a
+          # secret was never added or is empty.
+          missing = [n for n, v in
+                     (("NEO4J_URI", uri), ("NEO4J_USER", user), ("NEO4J_PASSWORD", pwd))
+                     if not v]
+          if missing:
+              sys.exit(
+                  f"::error::Missing repository secret(s): {', '.join(missing)}. "
+                  "Add them under Settings > Secrets and variables > Actions."
+              )
+
+          # Log only the host, never the full URI (it is not secret, but this
+          # keeps the habit) and never the user or password.
+          host = uri.split("@")[-1].replace("neo4j+s://", "").replace("bolt://", "")
+          print(f"Target instance: {host}")
+
+          # A paused or cold instance can refuse the first connection while it
+          # wakes, so retry with backoff before declaring failure.
+          attempts, delay, last_err = 3, 10, None
+          for attempt in range(1, attempts + 1):
+              try:
+                  driver = GraphDatabase.driver(uri, auth=(user, pwd))
+                  with driver:
+                      driver.verify_connectivity()
+                      with driver.session() as session:
+                          # RETURN 1 proves the connection; the count touches the
+                          # graph itself so the activity is unambiguously a read
+                          # against user data, not just a handshake.
+                          assert session.run("RETURN 1 AS ok").single()["ok"] == 1
+                          nodes = session.run(
+                              "MATCH (n) RETURN count(n) AS n"
+                          ).single()["n"]
+                  print(f"OK - connection verified, {nodes} nodes visible.")
+                  print("::notice::Aura ping succeeded; inactivity timer reset.")
+                  sys.exit(0)
+              except (Neo4jError, OSError, Exception) as e:   # noqa: B014
+                  last_err = e
+                  print(f"Attempt {attempt}/{attempts} failed: {type(e).__name__}: {e}")
+                  if attempt < attempts:
+                      print(f"Retrying in {delay}s (instance may be waking)...")
+                      time.sleep(delay)
+                      delay *= 2
+
+          sys.exit(f"::error::All {attempts} attempts failed. Last error: {last_err}")
+          PY
