@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useRef, useEffect } from "react";
-import { motion, AnimatePresence } from "motion/react";
+import { motion } from "motion/react";
 import { postChat, ApiError } from "@/lib/api";
 import type { ChatTurn } from "@/lib/types";
 import {
@@ -10,6 +10,7 @@ import {
   PageHeader,
   Panel,
   TerminalButton,
+  GraphConstellation,
 } from "@/components/ui/motion";
 
 // AI Assistant terminal. Parity target: app.py's chat loop - same quick
@@ -43,15 +44,10 @@ function TransparencyPanel({ turn }: { turn: ChatTurn }) {
         <span>{open ? "COLLAPSE" : "EXPAND"}</span>
       </button>
 
-      <AnimatePresence initial={false}>
-        {open && (
-          <motion.div
-            initial={{ height: 0, opacity: 0 }}
-            animate={{ height: "auto", opacity: 1 }}
-            exit={{ height: 0, opacity: 0 }}
-            transition={{ duration: 0.25, ease: EASE }}
-            className="overflow-hidden border-t border-rule"
-          >
+      {/* Plain conditional, not AnimatePresence: the exit never resolved, so
+          the panel expanded but could not be collapsed again. */}
+      {open && (
+        <div className="overflow-hidden border-t border-rule">
             <div className="space-y-3 p-3">
               {turn.cypher_queries.map((q, i) => (
                 <div key={i} className="border border-rule">
@@ -93,10 +89,9 @@ function TransparencyPanel({ turn }: { turn: ChatTurn }) {
                   })}
                 </div>
               )}
-            </div>
-          </motion.div>
-        )}
-      </AnimatePresence>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
@@ -154,13 +149,12 @@ export default function ChatPage() {
           }
         />
 
-        <AnimatePresence>
-          {turns.length === 0 && (
-            <motion.div
-              exit={{ opacity: 0, y: -8 }}
-              transition={{ duration: 0.2 }}
-              className="mb-5"
-            >
+        {/* Plain conditional rather than AnimatePresence: the exit animation
+            never resolved here, so the block stayed mounted for the whole
+            session instead of clearing once querying began. An instant switch
+            also suits the terminal aesthetic better than an ease-out. */}
+        {turns.length === 0 && (
+          <div className="mb-5">
               <div className="telemetry mb-2 text-phosphor-faint">[ PRESET QUERIES ]</div>
               <div className="grid gap-px border border-rule bg-rule sm:grid-cols-2 lg:grid-cols-3">
                 {QUICK_QUESTIONS.map((q, i) => (
@@ -180,12 +174,15 @@ export default function ChatPage() {
                     </div>
                   </motion.button>
                 ))}
-              </div>
-            </motion.div>
-          )}
-        </AnimatePresence>
+            </div>
+          </div>
+        )}
 
         <div className="flex-1 space-y-3">
+          {/* Standby visual: occupies the empty space between the presets and
+              the input until the first query, then yields to the transcript. */}
+          {turns.length === 0 && !loading && <GraphConstellation />}
+
           {turns.map((turn, i) =>
             turn.role === "user" ? (
               <motion.div
@@ -217,18 +214,13 @@ export default function ChatPage() {
             ),
           )}
 
-          <AnimatePresence>
-            {loading && (
-              <motion.div
-                initial={{ opacity: 0 }}
-                animate={{ opacity: 1 }}
-                exit={{ opacity: 0 }}
-                className="border border-rule bg-substrate-raised p-3"
-              >
-                <LoadingBlocks label="INTERROGATING GRAPH // GENERATING CYPHER" />
-              </motion.div>
-            )}
-          </AnimatePresence>
+          {/* Plain conditional, not AnimatePresence: its exit never resolved,
+              which left "INTERROGATING GRAPH" on screen after every query. */}
+          {loading && (
+            <div className="border border-rule bg-substrate-raised p-3">
+              <LoadingBlocks label="INTERROGATING GRAPH // GENERATING CYPHER" />
+            </div>
+          )}
 
           {error && (
             <div className="border border-hazard bg-substrate-raised p-3">

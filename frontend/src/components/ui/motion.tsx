@@ -512,3 +512,153 @@ export function IncidentTicker({ incidents }: { incidents: TickerIncident[] }) {
     </div>
   );
 }
+
+/* ------------------------------------------------------------------ */
+/* IDLE CONSTELLATION                                                  */
+/* ------------------------------------------------------------------ */
+
+// The real schema, not decorative noise: these are the graph's actual node
+// labels and the actual relationships between them, so the standby visual
+// doubles as a legend for what can be asked about.
+//
+// Positions are fixed rather than randomised - this renders inside a client
+// component that Next still server-renders, and Math.random() would produce
+// different coordinates on server and client, causing a hydration mismatch.
+const CONSTELLATION_NODES: {
+  id: string;
+  label: string;
+  x: number;
+  y: number;
+  hub?: boolean;
+}[] = [
+  { id: "mo", label: "MODUS OPERANDI", x: 232, y: 34 },
+  { id: "loc", label: "LOCATION", x: 104, y: 92 },
+  { id: "inv", label: "INVESTIGATOR", x: 150, y: 176 },
+  { id: "crime", label: "CRIME", x: 322, y: 112, hub: true },
+  { id: "evi", label: "EVIDENCE", x: 330, y: 196 },
+  { id: "weapon", label: "WEAPON", x: 486, y: 188 },
+  { id: "person", label: "PERSON", x: 566, y: 96, hub: true },
+  { id: "org", label: "ORGANIZATION", x: 724, y: 46 },
+  { id: "veh", label: "VEHICLE", x: 716, y: 172 },
+];
+
+const CONSTELLATION_EDGES: [string, string][] = [
+  ["crime", "loc"],
+  ["crime", "inv"],
+  ["crime", "evi"],
+  ["crime", "mo"],
+  ["crime", "weapon"],
+  ["crime", "veh"],
+  ["person", "crime"],
+  ["person", "org"],
+  ["person", "weapon"],
+  ["person", "veh"],
+  ["evi", "person"],
+];
+
+/**
+ * Ambient knowledge-graph constellation for the assistant's idle state.
+ * Pure SVG + CSS animation - no canvas, no per-frame JS.
+ */
+export function GraphConstellation() {
+  const byId = Object.fromEntries(CONSTELLATION_NODES.map((n) => [n.id, n]));
+
+  return (
+    <div className="pointer-events-none relative flex w-full items-center justify-center py-4">
+      <svg
+        viewBox="0 0 828 230"
+        className="w-full max-w-4xl"
+        aria-hidden
+        role="presentation"
+      >
+        <defs>
+          {/* Soft bloom around each node */}
+          <filter id="node-bloom" x="-140%" y="-140%" width="380%" height="380%">
+            <feGaussianBlur stdDeviation="6" result="blur" />
+            <feMerge>
+              <feMergeNode in="blur" />
+              <feMergeNode in="SourceGraphic" />
+            </feMerge>
+          </filter>
+        </defs>
+
+        {CONSTELLATION_EDGES.map(([a, b], i) => (
+          <line
+            key={`${a}-${b}`}
+            x1={byId[a].x}
+            y1={byId[a].y}
+            x2={byId[b].x}
+            y2={byId[b].y}
+            stroke="var(--node-glow)"
+            strokeOpacity={0.22}
+            strokeWidth={1}
+            className="constellation-edge"
+            style={{ animationDelay: `${i * 0.35}s` }}
+          />
+        ))}
+
+        {CONSTELLATION_NODES.map((n, i) => {
+          const r = n.hub ? 7 : 4.5;
+          return (
+            <g
+              key={n.id}
+              className="constellation-node"
+              style={{
+                animationDelay: `${i * 0.55}s`,
+                animationDuration: `${6.5 + (i % 4)}s`,
+              }}
+            >
+              {/* Halo sits behind the core and breathes independently */}
+              <circle
+                cx={n.x}
+                cy={n.y}
+                r={r * 3}
+                fill="var(--node-glow)"
+                fillOpacity={0.07}
+                className="constellation-halo"
+                style={{ animationDelay: `${i * 0.4}s` }}
+              />
+              <circle
+                cx={n.x}
+                cy={n.y}
+                r={r}
+                fill="var(--node-glow)"
+                filter="url(#node-bloom)"
+                opacity={n.hub ? 0.95 : 0.75}
+              />
+              {/* Hubs get a ring so the two anchor entities read as primary */}
+              {n.hub && (
+                <circle
+                  cx={n.x}
+                  cy={n.y}
+                  r={r + 5}
+                  fill="none"
+                  stroke="var(--node-glow)"
+                  strokeOpacity={0.35}
+                  strokeWidth={1}
+                />
+              )}
+              <text
+                x={n.x}
+                y={n.y + (n.hub ? 26 : 20)}
+                textAnchor="middle"
+                className="fill-phosphor-dim"
+                style={{
+                  // 8px at 0.45 opacity on this substrate was effectively
+                  // invisible - the labels are what make this read as a
+                  // knowledge graph rather than abstract dots.
+                  fontSize: 9.5,
+                  letterSpacing: "0.12em",
+                  fontFamily: "var(--font-jetbrains-mono), monospace",
+                  opacity: n.hub ? 0.95 : 0.68,
+                }}
+              >
+                {n.label}
+              </text>
+            </g>
+          );
+        })}
+      </svg>
+    </div>
+  );
+}

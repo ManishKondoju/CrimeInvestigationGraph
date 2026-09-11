@@ -195,3 +195,39 @@ input[type="date"]::-webkit-calendar-picker-indicator {
 @media (prefers-reduced-motion: reduce) {
   .beacon-sweep, .beacon-lamp { animation: none; }
 }
+
+/* --- Idle knowledge-graph constellation ----------------------------
+   Decorative standby visual on the assistant screen, shown only before a
+   conversation starts. Deliberately steps outside the single-accent rule
+   with a cool blue; keep the exception contained to this one variable so
+   it can be pulled back in-system with a single edit. */
+:root {
+  --node-glow: #4aa8ff;
+}
+
+@keyframes node-drift {
+  0%, 100% { transform: translateY(0); }
+  50%      { transform: translateY(-6px); }
+}
+
+@keyframes node-pulse {
+  0%, 100% { opacity: 0.35; }
+  50%      { opacity: 0.9; }
+}
+
+@keyframes edge-flow {
+  to { stroke-dashoffset: -24; }
+}
+
+.constellation-node { animation: node-drift 7s ease-in-out infinite; }
+.constellation-halo { animation: node-pulse 4s ease-in-out infinite; }
+.constellation-edge {
+  stroke-dasharray: 3 9;
+  animation: edge-flow 3s linear infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .constellation-node,
+  .constellation-halo,
+  .constellation-edge { animation: none; }
+}
