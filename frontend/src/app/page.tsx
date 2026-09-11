@@ -13,12 +13,12 @@ import {
   SchemaPreview,
   IncidentTicker,
   RuledGrid,
-  SirenBeacon,
+  IncidentMap,
   StatusLight,
   TypeOut,
 } from "@/components/ui/motion";
-import { getActivity, getKpis, getSchema } from "@/lib/api";
-import type { DashboardActivity } from "@/lib/types";
+import { getActivity, getCrimeLocations, getKpis, getSchema } from "@/lib/api";
+import type { CrimeLocation, DashboardActivity } from "@/lib/types";
 import { AnimatedNumber } from "@/components/ui/motion";
 
 // Index page. Not a marketing hero - a terminal boot screen and a
@@ -75,6 +75,9 @@ export default function Home() {
     nodes: number; relationships: number; crimes: number; suspects: number;
   } | null>(null);
 
+  // Real incident coordinates for the masthead map.
+  const [mapPoints, setMapPoints] = useState<CrimeLocation[]>([]);
+
   const router = useRouter();
   const [query, setQuery] = useState("");
 
@@ -93,6 +96,22 @@ export default function Home() {
       })
       .catch(() => {
         if (!cancelled) setLink("down");
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  useEffect(() => {
+    let cancelled = false;
+    // Capped well below the full set - this is a backdrop, and a few hundred
+    // points already render the city's footprint.
+    getCrimeLocations({ limit: 400 })
+      .then((res) => {
+        if (!cancelled) setMapPoints(res.rows);
+      })
+      .catch(() => {
+        /* backdrop only - never block the page on it */
       });
     return () => {
       cancelled = true;
@@ -129,17 +148,14 @@ export default function Home() {
 
         {/* Macro-typographic masthead - viewport-bleeding, tight, uppercase */}
         <div className="relative py-10 md:py-16">
-          <div className="flex items-start gap-4">
-            <h1 className="display text-[clamp(3rem,13vw,11rem)] text-phosphor">
-              CRIME
-              <br />
-              GRAPH
-              <span className="text-hazard">RAG</span>
-            </h1>
-            <div className="mt-2 md:mt-4">
-              <SirenBeacon size={56} />
-            </div>
-          </div>
+          <IncidentMap points={mapPoints} />
+
+          <h1 className="relative z-10 display text-[clamp(3rem,13vw,11rem)] text-phosphor">
+            CRIME
+            <br />
+            GRAPH
+            <span className="text-hazard">RAG</span>
+          </h1>
 
           <motion.div
             initial={{ scaleX: 0 }}

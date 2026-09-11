@@ -424,41 +424,6 @@ export function PageHeader({
 /* DISPATCH                                                            */
 /* ------------------------------------------------------------------ */
 
-/**
- * Rotating emergency beacon, drawn rather than photographed - a stock
- * siren image would break the system's typographic/technical discipline
- * and carry licensing baggage for no benefit.
- */
-export function SirenBeacon({ size = 44 }: { size?: number }) {
-  return (
-    <svg
-      width={size}
-      height={size}
-      viewBox="0 0 48 48"
-      fill="none"
-      aria-hidden
-      className="shrink-0"
-    >
-      {/* Sweeping light cone */}
-      <g className="beacon-sweep">
-        <path d="M24 22 L46 10 L46 34 Z" fill="var(--hazard)" opacity="0.16" />
-        <path d="M24 22 L2 10 L2 34 Z" fill="var(--hazard)" opacity="0.16" />
-      </g>
-
-      {/* Lamp dome */}
-      <path
-        d="M14 24 A10 10 0 0 1 34 24 Z"
-        fill="var(--hazard)"
-        className="beacon-lamp"
-      />
-      {/* Housing + base, squared off to match the system's geometry */}
-      <rect x="12" y="24" width="24" height="4" fill="var(--phosphor-dim)" />
-      <rect x="15" y="28" width="18" height="7" fill="var(--phosphor-faint)" />
-      <rect x="11" y="35" width="26" height="3" fill="var(--phosphor-dim)" />
-    </svg>
-  );
-}
-
 export interface TickerIncident {
   id: string;
   type: string;
@@ -1022,5 +987,93 @@ export function DashboardPreview() {
         <rect x="128" y="37" width="34" height="11" fill="var(--phosphor-dim)" opacity="0.85" />
       </g>
     </PreviewFrame>
+  );
+}
+
+/**
+ * Masthead map: the real incident coordinates from the graph, projected
+ * and dissolved into the page behind the wordmark.
+ *
+ * Plots actual lat/lon rather than scattered dots - the footprint is the
+ * genuine geographic distribution of the loaded incidents, so it reads as
+ * data rather than decoration. Bounds are derived from the points
+ * themselves so the cloud fills the frame regardless of what is loaded.
+ */
+export function IncidentMap({
+  points,
+}: {
+  points: { latitude: number; longitude: number; severity: string }[];
+}) {
+  const W = 480;
+  const H = 260;
+
+  if (points.length === 0) return null;
+
+  const lats = points.map((p) => p.latitude);
+  const lons = points.map((p) => p.longitude);
+  const latMin = Math.min(...lats);
+  const latMax = Math.max(...lats);
+  const lonMin = Math.min(...lons);
+  const lonMax = Math.max(...lons);
+  const latSpan = latMax - latMin || 1;
+  const lonSpan = lonMax - lonMin || 1;
+
+  const pad = 26;
+  const project = (p: { latitude: number; longitude: number }) => ({
+    x: pad + ((p.longitude - lonMin) / lonSpan) * (W - pad * 2),
+    // SVG y grows downward, latitude grows north - invert.
+    y: pad + ((latMax - p.latitude) / latSpan) * (H - pad * 2),
+  });
+
+  const severe = (s: string) => ["critical", "high", "severe"].includes(s?.toLowerCase());
+
+  return (
+    <div
+      aria-hidden
+      className="pointer-events-none absolute inset-y-0 right-0 hidden w-[46%] items-center justify-end lg:flex"
+      style={{
+        // Dissolve the map into the page on every edge so it reads as part
+        // of the background rather than a panel dropped beside the title.
+        maskImage:
+          "radial-gradient(ellipse at 62% 50%, #000 30%, rgba(0,0,0,0.55) 58%, transparent 78%)",
+        WebkitMaskImage:
+          "radial-gradient(ellipse at 62% 50%, #000 30%, rgba(0,0,0,0.55) 58%, transparent 78%)",
+      }}
+    >
+      <svg viewBox={`0 0 ${W} ${H}`} className="h-full w-full" role="presentation">
+        {/* Graticule - measured, faint, no frame */}
+        <g stroke="var(--phosphor)" strokeWidth="0.5" opacity="0.13">
+          {Array.from({ length: 7 }, (_, i) => (
+            <line key={`h${i}`} x1="0" y1={(H / 6) * i} x2={W} y2={(H / 6) * i} />
+          ))}
+          {Array.from({ length: 11 }, (_, i) => (
+            <line key={`v${i}`} x1={(W / 10) * i} y1="0" x2={(W / 10) * i} y2={H} />
+          ))}
+        </g>
+
+        {/* Incidents */}
+        {points.map((p, i) => {
+          const { x, y } = project(p);
+          const hot = severe(p.severity);
+          return (
+            <circle
+              key={i}
+              cx={x}
+              cy={y}
+              r={hot ? 1.9 : 1.3}
+              fill={hot ? "var(--hazard)" : "var(--phosphor-dim)"}
+              opacity={hot ? 0.95 : 0.6}
+              className="preview-pop"
+              style={{
+                // Long, heavily staggered cycle: the cloud resolves rather
+                // than blinking, and never pulls focus from the wordmark.
+                animationDuration: "14s",
+                animationDelay: `${(i % 40) * 0.12}s`,
+              }}
+            />
+          );
+        })}
+      </svg>
+    </div>
   );
 }
