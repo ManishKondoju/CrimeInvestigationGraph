@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { motion } from "motion/react";
 import {
@@ -16,8 +17,9 @@ import {
   StatusLight,
   TypeOut,
 } from "@/components/ui/motion";
-import { getActivity } from "@/lib/api";
+import { getActivity, getKpis, getSchema } from "@/lib/api";
 import type { DashboardActivity } from "@/lib/types";
+import { AnimatedNumber } from "@/components/ui/motion";
 
 // Index page. Not a marketing hero - a terminal boot screen and a
 // dispatch board of available modules, per the Tactical Telemetry
@@ -58,6 +60,38 @@ export default function Home() {
   // doesn't render until data arrives rather than blocking the page.
   const [incidents, setIncidents] = useState<DashboardActivity["recent_incidents"]>([]);
 
+  // The stats fetch doubles as the health probe: if the graph answers, the
+  // link is genuinely up. A separate hardcoded "ACTIVE" badge would claim
+  // the backend is reachable without ever checking.
+  const [link, setLink] = useState<"live" | "down" | "checking">("checking");
+  const [stats, setStats] = useState<{
+    nodes: number; relationships: number; crimes: number; suspects: number;
+  } | null>(null);
+
+  const router = useRouter();
+  const [query, setQuery] = useState("");
+
+  useEffect(() => {
+    let cancelled = false;
+    Promise.all([getKpis(), getSchema()])
+      .then(([kpis, schema]) => {
+        if (cancelled) return;
+        setStats({
+          nodes: schema.nodes.reduce((sum, n) => sum + n.count, 0),
+          relationships: schema.relationships.reduce((sum, r) => sum + r.count, 0),
+          crimes: kpis.total_crimes,
+          suspects: kpis.total_persons,
+        });
+        setLink("live");
+      })
+      .catch(() => {
+        if (!cancelled) setLink("down");
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
   useEffect(() => {
     let cancelled = false;
     getActivity()
@@ -80,7 +114,10 @@ export default function Home() {
           <span className="telemetry text-phosphor-faint">
             CRIMEGRAPHRAG® / TACTICAL INTELLIGENCE TERMINAL / REV 2.6
           </span>
-          <StatusLight label="NEO4J LINK ACTIVE" />
+          <StatusLight
+            state={link}
+            labels={{ live: "NEO4J LINK ACTIVE", down: "NEO4J UNREACHABLE", checking: "LINKING..." }}
+          />
         </div>
 
         {/* Macro-typographic masthead - viewport-bleeding, tight, uppercase */}
@@ -112,16 +149,55 @@ export default function Home() {
                 startDelay={400}
               />
             </p>
-            <dl className="telemetry grid grid-cols-2 gap-x-6 gap-y-1 self-end text-phosphor-faint md:text-right">
-              <dt>SUBSTRATE</dt>
-              <dd className="text-phosphor-dim">NEO4J AURA</dd>
-              <dt>AGENT</dt>
-              <dd className="text-phosphor-dim">LANGGRAPH</dd>
-              <dt>MODULES</dt>
-              <dd className="text-phosphor-dim">5 / 7 ONLINE</dd>
+            {/* Live readouts, not static claims - every number here is
+                fetched from the graph on load. */}
+            <dl className="grid shrink-0 grid-cols-2 gap-x-8 gap-y-2 self-end">
+              {[
+                ["NODES", stats?.nodes],
+                ["RELATIONSHIPS", stats?.relationships],
+                ["CRIMES", stats?.crimes],
+                ["SUSPECTS", stats?.suspects],
+              ].map(([label, value]) => (
+                <div key={label as string} className="md:text-right">
+                  <dt className="telemetry text-phosphor-faint">{label}</dt>
+                  <dd className="display text-xl tabular-nums text-phosphor">
+                    {value === undefined ? (
+                      <span className="text-phosphor-faint">--</span>
+                    ) : (
+                      <AnimatedNumber value={value as number} />
+                    )}
+                  </dd>
+                </div>
+              ))}
             </dl>
           </div>
         </div>
+
+        {/* The product is natural-language interrogation, so it should be
+            usable from the front door rather than three clicks away. */}
+        <form
+          onSubmit={(e) => {
+            e.preventDefault();
+            if (!query.trim()) return;
+            router.push(`/chat?q=${encodeURIComponent(query.trim())}`);
+          }}
+          className="mb-8 flex border border-rule bg-substrate-raised focus-within:border-hazard"
+        >
+          <span className="telemetry flex items-center px-3 text-hazard">{">"}</span>
+          <input
+            value={query}
+            onChange={(e) => setQuery(e.target.value)}
+            placeholder="INTERROGATE THE GRAPH — E.G. WHICH CRIMES SHARE A MODUS OPERANDI?"
+            className="telemetry flex-1 bg-transparent py-3 text-phosphor placeholder:text-phosphor-faint focus:outline-none"
+          />
+          <button
+            type="submit"
+            disabled={!query.trim()}
+            className="telemetry border-l border-rule px-4 text-phosphor-dim transition-colors duration-150 hover:bg-hazard hover:text-substrate disabled:opacity-40 disabled:hover:bg-transparent disabled:hover:text-phosphor-dim"
+          >
+            TRANSMIT
+          </button>
+        </form>
 
         {/* Endless dispatch feed of real incidents from the graph */}
         <div className="mb-8">
@@ -130,7 +206,9 @@ export default function Home() {
 
         {/* Dispatch board */}
         <div className="telemetry mb-2 flex items-center justify-between text-phosphor-faint">
-          <span>[ MODULE INDEX ]</span>
+          <span>
+            [ MODULE INDEX ] {MODULES.filter((m) => m.href).length} / {MODULES.length} ONLINE
+          </span>
           <span>{">>>"}</span>
         </div>
 

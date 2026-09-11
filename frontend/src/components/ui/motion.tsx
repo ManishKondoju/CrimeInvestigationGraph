@@ -241,16 +241,34 @@ export function TypeOut({
   );
 }
 
-/** Live-connection indicator - the ONE place terminal green appears. */
-export function StatusLight({ label = "LINK ACTIVE" }: { label?: string }) {
+/**
+ * Connection indicator - the ONE place terminal green appears.
+ *
+ * `state` must reflect an actual probe of the backend. A light that is
+ * always green is worse than no light at all in an interface whose whole
+ * claim is that its output is verifiable.
+ */
+export function StatusLight({
+  state = "checking",
+  labels,
+}: {
+  state?: "live" | "down" | "checking";
+  labels?: Partial<Record<"live" | "down" | "checking", string>>;
+}) {
+  const preset = {
+    live: { text: labels?.live ?? "LINK ACTIVE", dot: "bg-terminal", copy: "text-phosphor-dim" },
+    down: { text: labels?.down ?? "LINK DOWN", dot: "bg-hazard", copy: "text-hazard" },
+    checking: { text: labels?.checking ?? "LINKING...", dot: "bg-phosphor-faint", copy: "text-phosphor-faint" },
+  }[state];
+
   return (
     <span className="flex items-center gap-1.5">
       <motion.span
-        className="h-1.5 w-1.5 bg-terminal"
-        animate={{ opacity: [1, 0.25, 1] }}
-        transition={{ duration: 2, repeat: Infinity, ease: "linear" }}
+        className={`h-1.5 w-1.5 ${preset.dot}`}
+        animate={state === "checking" ? { opacity: [0.3, 1, 0.3] } : { opacity: [1, 0.25, 1] }}
+        transition={{ duration: state === "checking" ? 0.9 : 2, repeat: Infinity, ease: "linear" }}
       />
-      <span className="telemetry text-phosphor-dim">{label}</span>
+      <span className={`telemetry ${preset.copy}`}>{preset.text}</span>
     </span>
   );
 }

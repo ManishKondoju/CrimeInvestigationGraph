@@ -107,6 +107,23 @@ export default function ChatPage() {
     scrollRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [turns, loading]);
 
+  // A question handed over from the homepage console runs on arrival.
+  // Read from window rather than useSearchParams: this page is statically
+  // prerendered, and useSearchParams would force it dynamic (or demand a
+  // Suspense boundary) purely to read one optional param.
+  const handedOver = useRef(false);
+  useEffect(() => {
+    if (handedOver.current) return;
+    handedOver.current = true;
+    const q = new URLSearchParams(window.location.search).get("q");
+    if (q?.trim()) {
+      send(q.trim());
+      // Drop the param so a refresh doesn't silently re-run the query.
+      window.history.replaceState({}, "", window.location.pathname);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   async function send(question: string) {
     if (!question.trim() || loading) return;
     setError(null);
