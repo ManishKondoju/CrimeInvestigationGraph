@@ -36,6 +36,13 @@ interface Module {
   preview?: keyof typeof PREVIEWS;
 }
 
+const SAMPLE_QUESTIONS = [
+  "Which crimes share the same modus operandi?",
+  "Show me everyone within 2 degrees of David Rodriguez",
+  "Which suspects connect to multiple gangs?",
+  "Are any suspects related to each other by family?",
+];
+
 const PREVIEWS = {
   assistant: AssistantPreview,
   network: NetworkPreview,
@@ -202,6 +209,84 @@ export default function Home() {
         {/* Endless dispatch feed of real incidents from the graph */}
         <div className="mb-8">
           <IncidentTicker incidents={incidents} />
+        </div>
+
+        {/* Briefing: what this is, how it works, and what to ask it. The
+            masthead line alone assumes the reader already knows what a
+            LangGraph agent or a Cypher retry loop is. */}
+        <div className="telemetry mb-2 flex items-center justify-between text-phosphor-faint">
+          <span>[ BRIEFING ]</span>
+          <span>{"///"}</span>
+        </div>
+
+        <RuledGrid className="mb-10 grid-cols-1 lg:grid-cols-3">
+          <div className="bg-substrate-raised p-5">
+            <div className="telemetry mb-3 text-hazard">01 / WHAT THIS IS</div>
+            <p className="text-[13px] leading-relaxed text-phosphor-dim">
+              A crime investigation tool built on a{" "}
+              <span className="text-phosphor">knowledge graph</span> — people,
+              crimes, weapons, vehicles, evidence and locations stored as a
+              network of relationships rather than rows in a table. That makes
+              it possible to ask questions that span many hops, like who is
+              connected to whom, and through what.
+            </p>
+            <p className="mt-3 text-[13px] leading-relaxed text-phosphor-dim">
+              You ask in plain English. No query language required.
+            </p>
+          </div>
+
+          <div className="bg-substrate-raised p-5">
+            <div className="telemetry mb-3 text-hazard">02 / HOW IT WORKS</div>
+            <p className="text-[13px] leading-relaxed text-phosphor-dim">
+              An agent translates your question into{" "}
+              <span className="text-phosphor">Cypher</span> (the graph query
+              language), runs it, then checks the result. If the query errors —
+              or returns nothing — it rewrites and retries.
+            </p>
+            <div className="telemetry mt-4 space-y-1 text-phosphor-faint">
+              <div>EXTRACT ENTITIES</div>
+              <div>{"↓"} GENERATE CYPHER {"←┐"}</div>
+              <div>{"↓"} EXECUTE QUERY {"  │"}</div>
+              <div>{"↓"} VALIDATE {"───────┘"} <span className="text-hazard">RETRY</span></div>
+              <div>{"↓"} ANSWER</div>
+            </div>
+            <p className="mt-4 text-[13px] leading-relaxed text-phosphor-dim">
+              Every answer ships with the exact queries behind it, so you can
+              check the work rather than trust it.
+            </p>
+          </div>
+
+          <div className="bg-substrate-raised p-5">
+            <div className="telemetry mb-3 text-hazard">03 / TRY IT</div>
+            <p className="mb-3 text-[13px] leading-relaxed text-phosphor-dim">
+              Run one of these against the live graph:
+            </p>
+            <div className="space-y-px">
+              {SAMPLE_QUESTIONS.map((q) => (
+                <button
+                  key={q}
+                  onClick={() => router.push(`/chat?q=${encodeURIComponent(q)}`)}
+                  className="group/q flex w-full items-start gap-2 border border-rule bg-substrate p-2.5 text-left text-[12px] leading-snug text-phosphor-dim transition-colors duration-150 hover:border-hazard hover:text-phosphor"
+                >
+                  <span className="telemetry mt-0.5 text-hazard">{">"}</span>
+                  {q}
+                </button>
+              ))}
+            </div>
+          </div>
+        </RuledGrid>
+
+        {/* Data provenance - the crimes are real, the people are not, and a
+            crime-data project should say so plainly rather than imply
+            otherwise. */}
+        <div className="telemetry mb-10 border border-rule bg-substrate-raised p-4 leading-relaxed text-phosphor-faint">
+          <span className="text-phosphor-dim">DATA //</span> 493 REAL INCIDENTS
+          FROM THE CHICAGO OPEN DATA PORTAL, PLUS 177 SYNTHETIC INCIDENTS.{" "}
+          <span className="text-hazard">
+            ALL PERSONS, ORGANIZATIONS AND EVIDENCE ARE FICTIONAL
+          </span>{" "}
+          — GENERATED AS AN INTELLIGENCE LAYER SO THE GRAPH CAN BE EXPLORED
+          WITHOUT EXPOSING ANYONE&apos;S REAL RECORD.
         </div>
 
         {/* Dispatch board */}

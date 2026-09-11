@@ -15,10 +15,27 @@ const archivoBlack = Archivo_Black({
   subsets: ["latin"],
 });
 
+const SITE_URL = "https://crime-investigation-graph.vercel.app";
+const DESCRIPTION =
+  "Ask a crime knowledge graph questions in plain English. A LangGraph agent writes its own Cypher, validates the result, and retries when it is wrong - and shows you every query behind its answer.";
+
 export const metadata: Metadata = {
-  title: "CRIMEGRAPHRAG // TACTICAL INTELLIGENCE TERMINAL",
-  description:
-    "Crime investigation platform powered by a Neo4j knowledge graph and a LangGraph agent",
+  metadataBase: new URL(SITE_URL),
+  title: "CrimeGraphRAG // Tactical Intelligence Terminal",
+  description: DESCRIPTION,
+  // Without these the link shared as a blank card - no title, no image.
+  openGraph: {
+    type: "website",
+    url: SITE_URL,
+    siteName: "CrimeGraphRAG",
+    title: "CrimeGraphRAG // Tactical Intelligence Terminal",
+    description: DESCRIPTION,
+  },
+  twitter: {
+    card: "summary_large_image",
+    title: "CrimeGraphRAG // Tactical Intelligence Terminal",
+    description: DESCRIPTION,
+  },
 };
 
 export default function RootLayout({ children }: LayoutProps<"/">) {
