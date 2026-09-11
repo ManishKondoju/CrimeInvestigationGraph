@@ -25,6 +25,10 @@ from database import Database
 
 MAX_RETRIES = 2
 
+# How many result rows are shown to the answer model per result set. Caps
+# prompt size; the true total is always stated alongside (see generate_answer).
+ANSWER_ROW_LIMIT = 40
+
 # ============================================================
 # GRAPH SCHEMA (fed to the LLM so it writes valid Cypher)
 # ============================================================
@@ -38,6 +42,7 @@ GRAPH_SCHEMA = """NODE LABELS AND PROPERTIES:
   (:Evidence)      id, type, description, significance, verified
   (:Investigator)  id, name, badge_number, department, specialization, cases_solved, active_cases
   (:Location)      name
+  (:ModusOperandi) id, description, signature_element, frequency, confidence_score
 
 RELATIONSHIPS (direction matters):
   (Person)-[:KNOWS]-(Person)                  // treat as undirected, do NOT use an arrow
@@ -50,7 +55,34 @@ RELATIONSHIPS (direction matters):
   (Crime)-[:USED_WEAPON]->(Weapon)
   (Crime)-[:INVOLVED_VEHICLE]->(Vehicle)
   (Crime)-[:INVESTIGATED_BY]->(Investigator)
-  (Evidence)-[:LINKS_TO]->(Person)"""
+  (Crime)-[:MATCHES_MO]->(ModusOperandi)
+  (Evidence)-[:LINKS_TO]->(Person)
+  (Person)-[:FAMILY_REL]->(Person)             // has a `relation` property, e.g. 'brother'
+
+IMPORTANT - MODUS OPERANDI:
+Questions about modus operandi, M.O., method, technique, signature or
+"crimes committed the same way" must use (:ModusOperandi) via MATCHES_MO.
+Do NOT approximate an MO by comparing weapon, vehicle or evidence type -
+the graph records the actual MO, so inferring one from other attributes
+produces a confidently wrong answer.
+
+To find crimes sharing an MO:
+  MATCH (c1:Crime)-[:MATCHES_MO]->(m:ModusOperandi)<-[:MATCHES_MO]-(c2:Crime)
+  WHERE c1.id < c2.id
+  RETURN m.description AS mo, m.signature_element AS signature,
+         c1.type AS crime1, c2.type AS crime2 LIMIT 50
+
+FAMILY_REL is stored one-way but is semantically mutual - match it without
+an arrow, -[:FAMILY_REL]-, so relatives are found from either side.
+
+DEDUPING SYMMETRIC PAIRS (applies to KNOWS, FAMILY_REL, and any arrowless
+match): an undirected match returns every pair TWICE, once from each end,
+which doubles counts and wastes the LIMIT. Always constrain the ordering so
+each pair appears once:
+  MATCH (a:Person)-[r:FAMILY_REL]-(b:Person)
+  WHERE a.name < b.name
+  RETURN a.name AS person1, b.name AS person2, r.relation AS relation
+  LIMIT 50"""
 
 
 # ============================================================
@@ -253,7 +285,8 @@ class CrimeInvestigationAgent:
                 '"organizations" (list of gang/organization names), '
                 '"locations" (list of place names), '
                 '"intent" (one of: network, collaboration, influence, path, '
-                'weapons, vehicles, evidence, investigators, hotspots, general). '
+                'weapons, vehicles, evidence, investigators, hotspots, '
+                'modus_operandi, family, general). '
                 "Use [] when nothing matches. Do not invent names."
             )
             try:
@@ -502,6 +535,8 @@ WHAT TO BOLD:
 ANTI-HALLUCINATION:
 - Use ONLY data from the context
 - Count items accurately - no rounding
+- A result set may list only some of its rows. When it says rows are not
+  shown, use the stated Count as the total - never count the visible rows
 - Real names only - never invent
 - If the results are empty, say so plainly instead of guessing
 
@@ -521,9 +556,20 @@ REMEMBER: Flowing paragraphs, not lists."""
                 continue
             context_str += f"{key.upper()}:\n"
             if isinstance(value, list):
-                context_str += f"Count: {len(value)}\n"
-                for item in value[:15]:
+                # The row cap keeps the prompt bounded, but a truncated list
+                # previously looked identical to a complete one - so the model
+                # counted the rows it could see and under-reported totals
+                # (e.g. answering "3" when the result set held 50). State the
+                # true total, and say explicitly when rows are withheld.
+                context_str += f"Count: {len(value)} (this is the TRUE total)\n"
+                for item in value[:ANSWER_ROW_LIMIT]:
                     context_str += f"  • {json.dumps(item, default=str)}\n"
+                if len(value) > ANSWER_ROW_LIMIT:
+                    context_str += (
+                        f"  ... {len(value) - ANSWER_ROW_LIMIT} further rows not shown. "
+                        f"Cite the Count above ({len(value)}) as the total; do NOT count "
+                        f"the rows listed here.\n"
+                    )
             elif isinstance(value, dict):
                 context_str += f"{json.dumps(value, indent=2, default=str)}\n"
             context_str += "\n"
