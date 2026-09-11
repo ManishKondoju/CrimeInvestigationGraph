@@ -35,7 +35,10 @@ jobs:
 
     steps:
       - name: Set up Python
-        uses: actions/setup-python@v5
+        # v7 targets Node 24. v5/v6 target the deprecated Node 20, which the
+        # runner currently force-upgrades with a warning - that fallback is
+        # temporary, and this workflow has to keep working unattended.
+        uses: actions/setup-python@v7
         with:
           python-version: '3.11'
 
