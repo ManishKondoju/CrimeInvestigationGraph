@@ -157,6 +157,7 @@ class AgentState(TypedDict, total=False):
     conversation_history: list
     entities: dict
     plan: list                      # [{'name': str, 'cypher': str}] for this attempt
+    plan_source: str                # 'llm' | 'fallback' - see validate()
     cypher_queries: list            # [(display_name, cypher)] accumulated across attempts
     context: Annotated[dict, _merge_dict]
     last_error: str
@@ -248,6 +249,26 @@ class CrimeInvestigationAgent:
         raise ValueError(f"Could not parse JSON from LLM response: {raw[:200]}")
 
     @staticmethod
+    def _history_block(state, turns=4):
+        """Recent turns, for nodes that must resolve references like "he".
+
+        Without this the query-writing side of the agent sees each question
+        in isolation, so a follow-up ("what crimes did he commit?") has no
+        subject to resolve and the whole run derails.
+        """
+        history = (state.get("conversation_history") or [])[-turns:]
+        if not history:
+            return ""
+        lines = "\n".join(
+            f"{m.get('role', 'user').upper()}: {str(m.get('content', ''))[:400]}"
+            for m in history
+        )
+        return (
+            "\n\nRECENT CONVERSATION (resolve pronouns and references like "
+            f'"he", "she", "they", "that gang" against this):\n{lines}'
+        )
+
+    @staticmethod
     def _heuristic_names(question):
         """Regex name extraction - same rules as GraphRAG._extract_person_names."""
         exclude = {"i", "chicago", "detective", "side", "gang", "crew",
@@ -287,10 +308,15 @@ class CrimeInvestigationAgent:
                 '"intent" (one of: network, collaboration, influence, path, '
                 'weapons, vehicles, evidence, investigators, hotspots, '
                 'modus_operandi, family, general). '
-                "Use [] when nothing matches. Do not invent names."
+                "Use [] when nothing matches. Do not invent names. "
+                "If the question refers back to someone mentioned earlier "
+                '(e.g. "he", "they", "that suspect"), resolve it to the '
+                "actual name from the conversation below and return that."
             )
             try:
-                parsed = self._parse_json(self._chat(system_prompt, question))
+                parsed = self._parse_json(
+                    self._chat(system_prompt, question + self._history_block(state))
+                )
                 for key in ("persons", "organizations", "locations"):
                     value = parsed.get(key) or []
                     entities[key] = [str(v) for v in value if isinstance(v, (str, int))]
@@ -340,7 +366,7 @@ class CrimeInvestigationAgent:
         print(f"🧠 [generate_cypher] attempt {retries + 1}")
 
         if not self.use_llm:
-            return {"plan": self._fallback_plan(entities)}
+            return {"plan": self._fallback_plan(entities), "plan_source": "fallback"}
 
         system_prompt = f"""You write Cypher queries for a Neo4j crime-investigation knowledge graph.
 
@@ -359,7 +385,10 @@ RULES:
 9. Multi-hop uses a bounded range, e.g. -[:KNOWS*1..2]-.
 10. Only use the labels, properties and relationships listed above."""
 
-        user_prompt = f"QUESTION: {question}\n\nEXTRACTED ENTITIES: {json.dumps(entities)}"
+        user_prompt = (
+            f"QUESTION: {question}\n\nEXTRACTED ENTITIES: {json.dumps(entities)}"
+            + self._history_block(state)
+        )
 
         if last_error:
             user_prompt += (
@@ -389,11 +418,14 @@ RULES:
 
             for step in plan:
                 print(f"   → {step['name']}")
-            return {"plan": plan}
+            return {"plan": plan, "plan_source": "llm"}
 
         except Exception as e:
+            # The fallback is a safety net, not an answer to the question -
+            # validate() must know these results are generic so it does not
+            # mistake them for a successful retrieval.
             print(f"⚠️ cypher generation failed, using fallback plan: {e}")
-            return {"plan": self._fallback_plan(entities)}
+            return {"plan": self._fallback_plan(entities), "plan_source": "fallback"}
 
     def _fallback_plan(self, entities):
         """Deterministic queries for when the LLM is down or unparseable."""
@@ -499,6 +531,18 @@ RULES:
             problem = f"Cypher execution errors: {errors}"
         elif data_rows == 0:
             problem = "All queries executed successfully but returned 0 rows."
+        elif state.get("plan_source") == "fallback":
+            # The fallback plan asks generic questions (all organizations,
+            # repeat offenders) that return rows regardless of what was
+            # actually asked. Treating those rows as success let the agent
+            # answer a question it never queried - and report absence of
+            # evidence as evidence of absence.
+            problem = (
+                "Query generation failed, so a generic fallback plan ran instead. "
+                "Its results do not answer the question. Write Cypher that targets "
+                "the question directly, resolving any reference to an earlier turn "
+                "into an explicit name."
+            )
         else:
             problem = ""
 
