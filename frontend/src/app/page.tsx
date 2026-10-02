@@ -52,6 +52,7 @@ const PREVIEWS = {
 } as const;
 
 const MODULES: Module[] = [
+  { id: "D-00", label: "ABOUT", href: "/about", desc: "WHAT THIS IS // LAUNCH FILM // STACK", status: "ONLINE" },
   { id: "D-01", label: "AI ASSISTANT", href: "/chat", desc: "NATURAL-LANGUAGE QUERY // LANGGRAPH AGENT", status: "ONLINE", preview: "assistant" },
   { id: "D-02", label: "NETWORK", href: "/network", desc: "FORCE-DIRECTED ASSOCIATION GRAPH", status: "ONLINE", preview: "network" },
   { id: "D-03", label: "GEOSPATIAL", href: "/geo", desc: "INCIDENT MAP // DBSCAN HOTSPOTS", status: "ONLINE", preview: "geo" },
