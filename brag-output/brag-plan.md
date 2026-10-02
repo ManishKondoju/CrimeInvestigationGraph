@@ -23,9 +23,23 @@ says one plain thing out loud.
 | 2 | The problem | 70–150 | `EVERY CONNECTION BETWEEN THEM IS INVISIBLE` | Scattered points, no links |
 | 3 | The turn | 150–250 | `UNLESS YOU MAKE IT A GRAPH` | Edges draw, structure emerges |
 | 4 | Title | 250–330 | **CRIMEGRAPH**RAG | The reveal |
-| 5 | What it does | 330–430 | `ASK IT IN PLAIN ENGLISH` + real question | The product |
-| 6 | The payoff | 430–580 | Cypher writes itself + answer | *It shows its working* |
-| 7 | Outro | 580–720 | Figures, line, URL | Scale + where to get it |
+| 5 | What it does | 330–410 | `ASK IT IN PLAIN ENGLISH` + real question | The product |
+| 5.5 | **Handoff** | 410–460 | The `?` lights, is pushed into, and resolves into the agent loop | Question becomes machine |
+| 6 | The payoff | 460–600 | Cypher writes itself + answer | *It shows its working* |
+| 7 | Outro | 600–720 | Figures, line, URL | Scale + where to get it |
+
+### The handoff beat
+
+The `?` is the moment of asking, so it carries the cut. It is lifted out of
+the typed question, lit and scaled to fill the frame, then dissolves as the
+agent pipeline resolves outward from where it stood:
+
+`EXTRACT → GENERATE → EXECUTE → VALIDATE → ANSWER`, with the
+`RETRY ON FAILURE` arc looping VALIDATE back to GENERATE.
+
+This is the one thing the film previously only asserted. The retry arc is
+what makes this an agent rather than a text-to-query translator, and now it
+is on screen. The second music drop (f450) lands on the morph.
 
 ## Cinematic grammar
 

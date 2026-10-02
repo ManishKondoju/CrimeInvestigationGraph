@@ -86,6 +86,9 @@ TEMPLATE = r"""<!doctype html>
  .mt.hot .fil{background:var(--hz)}
  #slats{position:absolute;inset:0;z-index:93;display:flex;pointer-events:none}
  #slats i{flex:1;background:var(--hz);transform:scaleY(0);transform-origin:bottom}
+ #qm{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;z-index:58}
+ #qmc{font-family:'Archivo Black',sans-serif;color:var(--hz);line-height:1;display:block}
+ #pipe{position:absolute;inset:0;z-index:57}
  .hide{display:none!important}
 </style></head><body><div id="stage">
  <div id="cam">
@@ -113,6 +116,8 @@ TEMPLATE = r"""<!doctype html>
   <div id="cyp" class="hide"><div id="ch">AGENT-WRITTEN CYPHER</div><div id="cb"></div></div>
   <div id="ans" class="hide"><div id="ah">ANSWER</div><div id="ab"><span id="at"></span><div id="mo" class="hide"></div></div></div>
 
+  <div id="qm" class="hide"><span id="qmc">?</span></div>
+  <div id="pipe" class="hide"><svg id="pipes" viewBox="0 0 1920 1080"></svg></div>
   <div id="stats" class="hide"></div>
   <div id="out" class="hide"><div class="disp" id="o1">CRIME<span class="hz">GRAPH</span>RAG</div>
     <div id="otag"></div><div id="ourl"></div></div>
@@ -125,7 +130,8 @@ TEMPLATE = r"""<!doctype html>
 </div>
 <script>
 const D=__DATA__, FPS=30, TOTAL=720;
-const S={open:[0,70],prob:[70,150],turn:[150,250],title:[250,330],ask:[330,430],pay:[430,580],out:[580,720]};
+const S={open:[0,70],prob:[70,150],turn:[150,250],title:[250,330],ask:[330,410],
+         hand:[410,460],pay:[460,600],out:[600,720]};
 const cl=(v,a,b)=>Math.max(a,Math.min(b,v)), pr=(f,s)=>cl((f-S[s][0])/(S[s][1]-S[s][0]),0,1);
 const inS=(f,s)=>f>=S[s][0]&&f<S[s][1];
 const eo=t=>1-Math.pow(1-t,3), eio=t=>t<.5?4*t*t*t:1-Math.pow(-2*t+2,3)/2;
@@ -239,6 +245,41 @@ const mFil=[...document.querySelectorAll('#meters .fil')], mVal=[...document.que
 $('slats').innerHTML=Array.from({length:18},()=>'<i></i>').join('');
 const SL=[...document.querySelectorAll('#slats i')];
 
+// ---------- agent pipeline, revealed out of the question mark ----------
+const pipes=$('pipes');
+const PN=[['EXTRACT',430],['GENERATE',700],['EXECUTE',960],['VALIDATE',1220],['ANSWER',1490]];
+const PY_=600;
+const pNode=[], pLab=[], pEdge=[];
+PN.forEach(([lab,x],i)=>{
+  const r=document.createElementNS(NS,'rect');
+  Object.entries({x:x-96,y:PY_-30,width:192,height:60,fill:'#121212',
+    stroke:(i===3?'#e61919':'#2a2a2a'),'stroke-width':2}).forEach(([k,v])=>r.setAttribute(k,v));
+  pipes.appendChild(r); pNode.push(r);
+  const tx=document.createElementNS(NS,'text');
+  Object.entries({x:x,y:PY_+6,'text-anchor':'middle',fill:(i===3?'#e61919':'#8a8a8a'),
+    'font-size':19,'letter-spacing':'0.14em','font-family':"'JetBrains Mono',monospace"})
+    .forEach(([k,v])=>tx.setAttribute(k,v));
+  tx.textContent=lab; pipes.appendChild(tx); pLab.push(tx);
+  if(i<PN.length-1){
+    const l=document.createElementNS(NS,'path');
+    Object.entries({d:`M${x+96} ${PY_} L${PN[i+1][1]-96} ${PY_}`,fill:'none',
+      stroke:'#8a8a8a','stroke-width':2}).forEach(([k,v])=>l.setAttribute(k,v));
+    pipes.appendChild(l); pEdge.push(l);
+  }
+});
+// the retry arc - the behaviour that makes this an agent and not a translator
+const retry=document.createElementNS(NS,'path');
+Object.entries({d:`M1220 ${PY_+32} C1220 ${PY_+150} 700 ${PY_+150} 700 ${PY_+32}`,
+  fill:'none',stroke:'#e61919','stroke-width':2.5,'stroke-dasharray':'8 7'})
+  .forEach(([k,v])=>retry.setAttribute(k,v));
+pipes.appendChild(retry);
+const retryLab=document.createElementNS(NS,'text');
+Object.entries({x:960,y:PY_+176,'text-anchor':'middle',fill:'#e61919','font-size':20,
+  'letter-spacing':'0.2em','font-family':"'JetBrains Mono',monospace"})
+  .forEach(([k,v])=>retryLab.setAttribute(k,v));
+retryLab.textContent='RETRY ON FAILURE'; pipes.appendChild(retryLab);
+const pipeAll=[...pNode,...pLab,...pEdge,retry,retryLab];
+
 const STATS=[['NODES',1868],['RELATIONSHIPS',2738],['CRIMES',670],['DISTRICTS',41]];
 $('stats').innerHTML=STATS.map(s=>`<div class="st"><div class="tel" style="color:var(--fa)">${s[0]}</div><div class="n" data-t="${s[1]}">0</div></div>`).join('');
 const sEl=[...document.querySelectorAll('#stats .n')];
@@ -250,7 +291,7 @@ function line(el,t,delay=0){
   el.parentElement.style.opacity=p>0?1:0;
 }
 function render(f){
-  const E={gl:$('gl'),ml:$('ml'),nl:$('nl'),kick:$('kick'),cap:$('cap'),mast:$('mast'),mtr:$('meters'),
+  const E={gl:$('gl'),ml:$('ml'),nl:$('nl'),kick:$('kick'),cap:$('cap'),mast:$('mast'),mtr:$('meters'),qm:$('qm'),pipe:$('pipe'),
     mrule:$('mrule'),msub:$('msub'),term:$('term'),cyp:$('cyp'),ans:$('ans'),stats:$('stats'),out:$('out')};
   Object.values(E).forEach(e=>sh(e,false));
   sh(E.gl,true);
@@ -305,7 +346,7 @@ function render(f){
   // slat wipe on act breaks - geometric, not a crossfade
   SL.forEach((el,i)=>{
     let v=0;
-    [250,430].forEach(wf=>{ const d=f-(wf-14+i*0.5);
+    [250].forEach(wf=>{ const d=f-(wf-14+i*0.5);
       if(d>=0&&d<9) v=Math.max(v,d/9); else if(d>=9&&d<18) v=Math.max(v,1-(d-9)/9); });
     el.style.transform=`scaleY(${v})`;
     el.style.transformOrigin=(i%2?'top':'bottom');
@@ -313,9 +354,10 @@ function render(f){
 
   // ---- act wipes + impact flashes ----
   let wl=-50;
-  [[250,'in'],[430,'in']].forEach(([wf])=>{ if(f>=wf-9&&f<wf+9) wl=-50+((f-(wf-9))/18)*150; });
+  [[250,'in']].forEach(([wf])=>{ if(f>=wf-9&&f<wf+9) wl=-50+((f-(wf-9))/18)*150; });
   $('wipe').style.left=wl+'%';
-  $('flash').style.opacity = (f===250||f===251||f===430) ? .85 : 0;
+  // flash on the title, and on the instant the pipeline resolves
+  $('flash').style.opacity = (f===250||f===251) ? .85 : (f===446 ? .5 : 0);
 
   // ================= 1 COLD OPEN =================
   if(inS(f,'open')){
@@ -373,10 +415,62 @@ function render(f){
     $('q').textContent=D.question.slice(0,n);
     $('car').style.opacity=(f%20<10)?1:0;
     $('thint').textContent=t>.84?'TRANSMITTING':'';
+    sh(E.qm,false);
   }
+  // ============ 5.5 HANDOFF: the question mark becomes the agent ============
+  // The '?' is the moment of asking. Pushing into it and resolving the
+  // pipeline out of it puts the agent loop on screen - the one thing the
+  // film otherwise only asserts.
+  if(inS(f,'hand')){
+    const t=pr(f,'hand');
+    sh(E.term,true); sh(E.qm,true);
+    // phase 1 (0-.34): terminal recedes, the mark is isolated and lit
+    // phase 2 (.34-.62): hard push into the mark
+    // phase 3 (.62-1): mark dissolves, pipeline resolves out of it
+    const dim=(1-cl(t/.3,0,1)*0.88) * (1-cl((t-.52)/.16,0,1));
+    E.term.style.opacity=dim;
+    $('q').textContent=D.question.slice(0,-1);   // mark lifted out, shown below
+    $('car').style.opacity=0; $('thint').textContent='';
+    E.term.style.transform=`scale(${1-cl(t/.5,0,1)*0.16})`;
+
+    const grow=eoq(cl(t/.62,0,1));
+    const size=70+grow*620;
+    const qc=$('qmc');
+    qc.style.fontSize=size+'px';
+    qc.style.opacity = t<.62 ? 1 : 1-cl((t-.62)/.2,0,1);
+    // glow builds, then blows out as it dissolves
+    const gl=12+grow*70;
+    qc.style.textShadow=`0 0 ${gl}px rgba(230,25,25,${.35+grow*.5})`;
+    qc.style.transform=`scale(${1+Math.sin(t*22)*0.012*(1-grow)})`;
+
+    if(t>.56){
+      sh(E.pipe,true);
+      const pp=cl((t-.56)/.44,0,1);
+      // nodes resolve outward from where the mark was
+      pNode.forEach((n,i)=>{
+        const a=eoq(cl(pp*1.5-i*0.1,0,1));
+        n.setAttribute('opacity',a);
+        const cx=PN[i][1];
+        n.setAttribute('transform',`translate(${(960-cx)*(1-a)} ${(1-a)*10}) scale(1)`);
+      });
+      pLab.forEach((l,i)=>{const a=eoq(cl(pp*1.5-i*0.1-0.06,0,1));
+        l.setAttribute('opacity',a);
+        l.setAttribute('transform',`translate(${(960-PN[i][1])*(1-a)} ${(1-a)*10})`);});
+      pEdge.forEach((e,i)=>e.setAttribute('opacity',eoq(cl(pp*1.6-0.3-i*0.08,0,1))*.8));
+      retry.setAttribute('opacity',eoq(cl((pp-.52)/.4,0,1)));
+      retry.setAttribute('stroke-dashoffset',String(-(f*2)%15));
+      retryLab.setAttribute('opacity',eoq(cl((pp-.62)/.3,0,1)));
+    }
+  }
+
   // ================= 6 THE PAYOFF =================
   if(inS(f,'pay')){
     const t=pr(f,'pay'); sh(E.term,true); sh(E.cyp,true); sh(E.kick,true);
+    if(t<.3){ sh(E.pipe,true);
+      const fade=1-cl(t/.3,0,1);
+      pipeAll.forEach(el=>el.setAttribute('opacity',(+el.getAttribute('opacity')||1)*fade));
+      E.pipe.style.transform=`translateY(${-cl(t/.3,0,1)*90}px)`;
+    }
     E.kick.style.opacity=.55; E.kick.textContent='IT SHOWS ITS WORKING';
     E.term.style.opacity=1; E.term.style.transform='none';
     $('q').textContent=D.question; $('car').style.opacity=0; $('thint').textContent='RESOLVED';
