@@ -10,12 +10,45 @@ import { EASE, PageHeader, Panel, Reveal, RuledGrid } from "@/components/ui/moti
 
 const PIPELINE = ["EXTRACT", "GENERATE", "EXECUTE", "VALIDATE", "ANSWER"];
 
-const STACK = [
-  ["GRAPH", "Neo4j Aura", "1,868 nodes · 2,738 relationships across 9 entity types"],
-  ["AGENT", "LangGraph + Groq", "Writes its own Cypher, validates results, retries on failure"],
-  ["API", "FastAPI", "Read-only query layer; every filter is $-parameterised"],
-  ["CLIENT", "Next.js 16 · React 19", "This interface. Tailwind 4, no component library"],
-  ["HOSTING", "Vercel + Render", "Frontend, API, and a managed graph database"],
+// Versions are the ones actually pinned in backend/requirements.txt and
+// frontend/package.json - a stack list that drifts from the lockfile is
+// worse than none.
+const STACK: [string, [string, string, string][]][] = [
+  ["DATA", [
+    ["Neo4j Aura", "5.18", "Managed graph database — 1,868 nodes, 2,738 relationships, 9 entity types"],
+    ["Chicago Open Data", "—", "493 real incidents, geocoded, pulled from the city portal"],
+  ]],
+  ["AGENT", [
+    ["LangGraph", "0.2.60", "The state machine: extract → generate → execute → validate → answer"],
+    ["langchain-core", "0.3.29", "Message plumbing and the Neo4j query tool wrapper"],
+    ["langchain-groq", "0.2.3", "Model client"],
+    ["Groq", "gpt-oss-120b", "Inference for entity extraction, Cypher generation and answer synthesis"],
+  ]],
+  ["API", [
+    ["FastAPI", "0.115.6", "20 read-only endpoints; every filter passed as a Cypher $parameter"],
+    ["Uvicorn", "0.34.0", "ASGI server"],
+    ["Pydantic", "2.x", "Request and response schemas"],
+    ["pandas · NumPy", "2.2 · 1.26", "Aggregation for the dashboard and timeline endpoints"],
+    ["scikit-learn", "1.4.1", "DBSCAN clustering behind the geospatial hotspots"],
+  ]],
+  ["CLIENT", [
+    ["Next.js", "16.3.4", "App Router; server-side proxy keeps the API key off the browser"],
+    ["React", "19.2.8", "—"],
+    ["TypeScript", "5.x", "Strict; types mirror the Pydantic models"],
+    ["Tailwind CSS", "4.x", "No component library — the design system is hand-built"],
+    ["Motion", "13.1.1", "Entry animation and layout transitions"],
+    ["react-force-graph-2d", "1.29.1", "Canvas force layout for the network module"],
+    ["MapLibre GL", "5.24", "Vector maps, no API key — replaced a token-gated Mapbox setup"],
+  ]],
+  ["INFRASTRUCTURE", [
+    ["Vercel", "—", "Frontend and the proxy route"],
+    ["Render", "—", "FastAPI service"],
+    ["GitHub Actions", "—", "Daily keep-alive so the free-tier database never idles out"],
+  ]],
+  ["VERIFICATION", [
+    ["pytest", "8.3.4", "36 tests across the API surface and the agent's decision logic"],
+    ["eval_agent.py", "—", "10 questions checked against ground-truth Cypher — currently 10/10"],
+  ]],
 ];
 
 export default function AboutPage() {
@@ -155,13 +188,27 @@ export default function AboutPage() {
         </Panel>
 
         {/* ---------------- stack ---------------- */}
-        <Panel label="STACK" className="mb-4">
-          <div className="divide-y divide-rule/60">
-            {STACK.map(([k, v, note]) => (
-              <div key={k} className="flex flex-wrap gap-x-6 gap-y-1 px-5 py-3.5">
-                <span className="telemetry w-24 shrink-0 text-phosphor-faint">{k}</span>
-                <span className="w-56 shrink-0 text-[13px] text-phosphor">{v}</span>
-                <span className="telemetry flex-1 text-phosphor-dim">{note}</span>
+        <Panel label="TECH STACK" right="PINNED VERSIONS" className="mb-4">
+          <div className="divide-y divide-rule">
+            {STACK.map(([group, rows]) => (
+              <div key={group} className="grid gap-x-6 px-5 py-4 lg:grid-cols-[150px_1fr]">
+                <div className="telemetry mb-2 text-hazard lg:mb-0">{group}</div>
+                <div className="divide-y divide-rule/40">
+                  {rows.map(([name, ver, note]) => (
+                    <div
+                      key={name}
+                      className="flex flex-wrap items-baseline gap-x-4 gap-y-0.5 py-2 first:pt-0 last:pb-0"
+                    >
+                      <span className="w-52 shrink-0 text-[13px] text-phosphor">{name}</span>
+                      <span className="telemetry w-28 shrink-0 tabular-nums text-phosphor-faint">
+                        {ver}
+                      </span>
+                      {note !== "—" && (
+                        <span className="telemetry flex-1 text-phosphor-dim">{note}</span>
+                      )}
+                    </div>
+                  ))}
+                </div>
               </div>
             ))}
           </div>
