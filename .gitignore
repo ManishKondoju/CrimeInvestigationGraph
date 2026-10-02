@@ -38,3 +38,8 @@ Thumbs.db
 
 # Jupyter notebooks (if any)
 .ipynb_checkpoints/
+
+# Video build intermediates: the .py generators are the source of truth and
+# regenerate these exactly. Committing ~12MB of rendered audio would bloat
+# the repo for no benefit.
+brag-output/work/*.wav

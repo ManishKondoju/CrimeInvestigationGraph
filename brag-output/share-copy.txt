@@ -1,0 +1,10 @@
+670 crimes in a database. Every connection between them invisible — unless
+you make it a graph.
+
+I built CrimeGraphRAG so you can just ask it, in plain English, and it shows
+you the exact query it wrote to answer you. Asked which crimes shared a
+modus operandi, it found 50 linked by one signature: "breaking through rear
+windows at night, leaves door unlocked."
+
+Neo4j · LangGraph agent that writes its own Cypher and retries when it's wrong
+crime-investigation-graph.vercel.app

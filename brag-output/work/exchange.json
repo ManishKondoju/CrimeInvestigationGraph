@@ -1,0 +1,13 @@
+{
+ "answer": "The analysis shows that **50** crime incidents are linked by a single modus operandi, identified as **MO001**. This MO is described as \u201c**Breaking through rear windows at night**\u201d and carries the signature \u201c**leaves door unlocked**,\u201d indicating a consistent pattern of entry across the cases.\n\nAll of the paired crimes revolve around a central **BURGLARY** (ID\u202f14303245) that shares this method with a wide spectrum of offenses. The other offenses include **OTHER OFFENSE**, **WEAPONS VIOLATION**, **BATTERY**, **NARCOTICS**, **THEFT**, **PUBLIC PEACE VIOLATION**, **DECEPTIVE PRACTICE**, **CRIMINAL TRESPASS**, **ASSAULT**, **CRIMINAL DAMAGE**, and even another **THEFT** (ID\u202f14303665) linked directly to the same burglary. This breadth of crime types suggests that the same perpetrators or a coordinated group are applying the same entry technique to very different illegal activities.\n\nBecause the same entry method appears across such diverse categories, investigators can focus on the common \u201crear\u2011window break\u2011in\u201d signature to trace potential links between suspects, locations, or organized crews. Understanding that **MO001** is the unifying factor may help prioritize surveillance of properties vulnerable to night\u2011time rear\u2011window breaches.\n\nWould you like to see which individuals or organizations are most frequently connected to these **MO001** incidents?",
+ "cypher": [
+  {
+   "name": "Database Stats",
+   "cypher": "MATCH (c:Crime) RETURN count(c) as n"
+  },
+  {
+   "name": "Crimes sharing the same Modus Operandi",
+   "cypher": "MATCH (c1:Crime)-[:MATCHES_MO]->(m:ModusOperandi)<-[:MATCHES_MO]-(c2:Crime) WHERE c1.id < c2.id RETURN c1.id AS crime1_id, c1.type AS crime1_type, c2.id AS crime2_id, c2.type AS crime2_type, m.id AS mo_id, m.description AS mo_description, m.signature_element AS mo_signature LIMIT 50"
+  }
+ ]
+}

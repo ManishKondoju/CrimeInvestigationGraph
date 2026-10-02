@@ -23,25 +23,47 @@
 
 ---
 
+## 🎬 Demo
+
+<div align="center">
+
+![CrimeGraphRAG demo](brag-output/brag-preview.gif)
+
+**[▶ Watch with sound (24s)](brag-output/brag.mp4)** · [alternate cut](brag-output/brag-cinematic.mp4)
+
+</div>
+
+The clip above is silent and trimmed. The full version has audio and runs
+24 seconds.
+
+Everything shown is real: the figures come from the live `/api/schema` and
+`/api/dashboard/kpis` endpoints, the map plots 500 actual incident
+coordinates, and the question, the generated Cypher and the answer are one
+genuine agent run — it found 50 crimes sharing modus operandi `MO001`,
+*"breaking through rear windows at night / leaves door unlocked."*
+
+---
+
 ## 📖 Table of Contents
 
-1. [Overview](#-overview)
-2. [v2 — Agentic Rebuild](#-v2--agentic-rebuild-current-architecture)
-3. [The Graph RAG Innovation](#-the-graph-rag-innovation)
-4. [Comprehensive Features](#-comprehensive-features)
-5. [Knowledge Graph Schema](#-knowledge-graph-schema)
-6. [System Architecture](#-system-architecture)
-7. [Detailed Installation](#-detailed-installation)
-8. [Usage Guide](#-usage-guide)
-9. [Graph Algorithms Explained](#-graph-algorithms-explained)
-10. [Demonstration Guide](#-demonstration-guide)
-11. [Technical Implementation](#-technical-implementation)
-12. [Evaluation & Validation](#-evaluation--validation)
-13. [Research Foundation](#-research-foundation)
-14. [Troubleshooting](#-troubleshooting)
-15. [Roadmap](#-roadmap)
-16. [Contributing](#-contributing)
-17. [Author](#-author)
+1. [Demo](#-demo)
+2. [Overview](#-overview)
+3. [v2 — Agentic Rebuild](#-v2--agentic-rebuild-current-architecture)
+4. [The Graph RAG Innovation](#-the-graph-rag-innovation)
+5. [Comprehensive Features](#-comprehensive-features)
+6. [Knowledge Graph Schema](#-knowledge-graph-schema)
+7. [System Architecture](#-system-architecture)
+8. [Detailed Installation](#-detailed-installation)
+9. [Usage Guide](#-usage-guide)
+10. [Graph Algorithms Explained](#-graph-algorithms-explained)
+11. [Demonstration Guide](#-demonstration-guide)
+12. [Technical Implementation](#-technical-implementation)
+13. [Evaluation & Validation](#-evaluation--validation)
+14. [Research Foundation](#-research-foundation)
+15. [Troubleshooting](#-troubleshooting)
+16. [Roadmap](#-roadmap)
+17. [Contributing](#-contributing)
+18. [Author](#-author)
 
 ---
 
